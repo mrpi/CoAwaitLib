@@ -125,6 +125,11 @@ namespace co
           return get();
       }
 
+      inline bool is_ready()
+      {
+         return mResult.is_ready();
+      }
+      
       inline bool await_ready()
       {
          return mResult.is_ready_weak();

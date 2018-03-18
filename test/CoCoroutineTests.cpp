@@ -119,10 +119,9 @@ TEST_CASE("co::Routine: coroutine in coroutine")
    
    static_assert(co::supportsSynchronAwait<co::Routine&>, "");
    
-   static boost::asio::io_service ioc;
-   co::IoContextThreads threads{2, ioc};
+   co::IoContextThreads threads{2};
+   auto& ios = co::defaultIoContext();
    
-#if 0
    SECTION("with inner coroutine empty")
    {
       bool processed = false;
@@ -146,9 +145,8 @@ TEST_CASE("co::Routine: coroutine in coroutine")
       
       REQUIRE(processed);
    }
-#endif
    
-   SECTION("with one inner coroutine")
+   SECTION("with one inner coroutine", "[.benchmark]")
    {
       constexpr size_t LoopCnt = 250000;
       
@@ -165,7 +163,7 @@ TEST_CASE("co::Routine: coroutine in coroutine")
          co::Routine outerCoRo{[&]() {
             auto func = [&](){
                   for(int i=0; i < 1; i++)
-                     co::await(ioc);
+                     co::await(ios);
                };
 
             co::Routine innerCoRo1{func};
@@ -179,12 +177,13 @@ TEST_CASE("co::Routine: coroutine in coroutine")
          REQUIRE(calls == i+1);
       }
       
-      REQUIRE(outerCoRoEndThreads.size() == 3);
+      REQUIRE(outerCoRoEndThreads.size() >= 1);
+      REQUIRE(outerCoRoEndThreads.size() <= 3);
    }
    
-   SECTION("with multiple inner coroutines")
+   SECTION("with multiple inner coroutines", "[.benchmark]")
    {
-      constexpr size_t LoopCnt = 250000000;
+      constexpr size_t LoopCnt = 250000;
       
       std::cout << "io_context: " << (void*)&co::defaultIoContext() << std::endl;
       
@@ -198,7 +197,7 @@ TEST_CASE("co::Routine: coroutine in coroutine")
          co::Routine outerCoRo{[&]() {
             auto func = [&](){
                   for(int i=0; i < 1; i++)
-                     co::await(ioc);
+                     co::await(ios);
             };
                
             co::Routine innerCoRo1{func};
@@ -216,25 +215,23 @@ TEST_CASE("co::Routine: coroutine in coroutine")
       }
    }
    
-#if 0
-   SECTION("with on inner coroutine (always ready)")
+   SECTION("with inner coroutine (always ready)", "[.benchmark]")
    {
-      constexpr size_t LoopCnt = 20000;
-     size_t calls{};
+      constexpr size_t LoopCnt = 250000;
+      size_t calls{};
       
+      Bench bench;
       for (int i=0; i < LoopCnt; i++)
       {
-         if ((i+1 & 0x3F) == 0x3F)
-            std::cout << "#" << i << std::endl;
+         bench.update();
          
          co::Routine outerCoRo{[&]() {
             co::Routine innerCoRo{[&](){
                   for(int i=0; i < 1; i++)
-                     // co::await(co::asioSleep(ios, 50ms));
                      co::await(ios);
                }};
             
-            while(!innerCoRo.await_ready())
+            while(!innerCoRo.is_ready())
                ;
                
             co::await(innerCoRo);
@@ -247,5 +244,4 @@ TEST_CASE("co::Routine: coroutine in coroutine")
          REQUIRE(calls == i+1);
       }
    }
-#endif
 }

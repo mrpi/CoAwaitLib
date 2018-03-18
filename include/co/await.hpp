@@ -230,7 +230,7 @@ namespace co
        auto operator()(AwaiterFor<T>& awaiter)
        {
            return awaiter.await_synchron();
-       }      
+       }
    };
       
    template<typename T>
