@@ -119,6 +119,11 @@ namespace co
       {
          return mResult.get_blocking();
       }
+      
+      inline auto await_synchron()
+      {
+          return get();
+      }
 
       inline bool await_ready()
       {

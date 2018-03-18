@@ -34,6 +34,32 @@ TEST_CASE("co::Routine: await sleep on boost::asio::io_service")
    t.join();
 }
 
+TEST_CASE("co::Routine: await sleep on boost::asio::io_service directly with chrono type")
+{
+   using namespace std::literals;
+   
+   co::IoContextThreads threads{1};
+   
+   co::Routine coro{[]() {
+      auto startThread = std::this_thread::get_id();
+
+      co::await(1ms);
+
+      auto middleThread = std::this_thread::get_id();
+
+      co::await(1ms);
+
+      auto endThread = std::this_thread::get_id();
+
+      REQUIRE(middleThread != startThread);
+      REQUIRE(endThread != startThread);
+      
+      // there is only one thread executing io_service::run()
+      REQUIRE(middleThread == endThread);
+   }};
+   coro.get();
+}
+
 TEST_CASE("co::Routine: await boost::asio::io_service (switch to a thread that is executing io_service::run())")
 {
    boost::asio::io_service ios;
@@ -81,7 +107,7 @@ public:
        
        auto runtime = endTime - mStartTime;
        auto perSecond = static_cast<double>(BlockSize) / runtime.total_milliseconds() * 1000.0;
-       std::cout << "#" << mTotal << "(" << perSecond << " per second)" << std::endl;
+       std::cout << "#" << std::setw(8) << mTotal << " (" << std::setw(10) << std::setprecision(2) << std::fixed << perSecond << " per second)" << std::endl;
        
        mStartTime = now();
    }
@@ -91,14 +117,10 @@ TEST_CASE("co::Routine: coroutine in coroutine")
 {
    using namespace std::literals;
    
-   boost::asio::io_service ios;
-   boost::optional<boost::asio::io_service::work> iosWork{ios};
-
-   auto asioLoop = [&ios](){ ios.run(); };
+   static_assert(co::supportsSynchronAwait<co::Routine&>, "");
    
-   std::vector<std::thread> threads(2);
-   for (auto& t : threads)
-      t = std::thread{asioLoop};
+   static boost::asio::io_service ioc;
+   co::IoContextThreads threads{2, ioc};
    
 #if 0
    SECTION("with inner coroutine empty")
@@ -133,6 +155,8 @@ TEST_CASE("co::Routine: coroutine in coroutine")
       size_t calls{};
       std::set<std::thread::id> outerCoRoEndThreads;
       
+      std::cout << "io_context: " << (void*)&co::defaultIoContext() << std::endl;
+      
       Bench bench;
       for (int i=0; i < LoopCnt; i++)
       {
@@ -141,7 +165,7 @@ TEST_CASE("co::Routine: coroutine in coroutine")
          co::Routine outerCoRo{[&]() {
             auto func = [&](){
                   for(int i=0; i < 1; i++)
-                     co::await(ios);
+                     co::await(ioc);
                };
 
             co::Routine innerCoRo1{func};
@@ -150,7 +174,7 @@ TEST_CASE("co::Routine: coroutine in coroutine")
             outerCoRoEndThreads.insert(std::this_thread::get_id());
          }};
          
-         outerCoRo.get();
+         co::await(outerCoRo);
          
          REQUIRE(calls == i+1);
       }
@@ -162,6 +186,8 @@ TEST_CASE("co::Routine: coroutine in coroutine")
    {
       constexpr size_t LoopCnt = 250000000;
       
+      std::cout << "io_context: " << (void*)&co::defaultIoContext() << std::endl;
+      
      size_t calls{};
       
       Bench bench;
@@ -172,7 +198,7 @@ TEST_CASE("co::Routine: coroutine in coroutine")
          co::Routine outerCoRo{[&]() {
             auto func = [&](){
                   for(int i=0; i < 1; i++)
-                     co::await(ios);
+                     co::await(ioc);
             };
                
             co::Routine innerCoRo1{func};
@@ -184,7 +210,7 @@ TEST_CASE("co::Routine: coroutine in coroutine")
             calls++;
          }};
          
-         outerCoRo.get();
+         co::await(outerCoRo);
          
          REQUIRE(calls == i+1);
       }
@@ -222,9 +248,4 @@ TEST_CASE("co::Routine: coroutine in coroutine")
       }
    }
 #endif
-   
-   iosWork.reset();
-   
-   for (auto& t : threads)
-      t.join();
 }
