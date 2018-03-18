@@ -122,7 +122,7 @@ namespace co
 
       inline bool await_ready()
       {
-         return mResult.is_ready();
+         return mResult.is_ready_weak();
       }
 
       inline auto await_resume()

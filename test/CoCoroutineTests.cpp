@@ -55,6 +55,38 @@ TEST_CASE("co::Routine: await boost::asio::io_service (switch to a thread that i
    t.join();
 }
 
+inline auto now() { return boost::posix_time::microsec_clock::local_time(); }
+
+class Bench
+{
+private:
+   boost::posix_time::ptime mStartTime;
+   size_t mIdx{0};
+   size_t mTotal{0};
+   static constexpr size_t BlockSize = 1024 * 16;
+   
+public:
+   Bench()
+    : mStartTime(now())
+   {}
+   
+   void update()
+   {
+       mTotal++;
+       if (mIdx++ != BlockSize)
+          return;
+     
+       mIdx = 0;
+       auto endTime = now();
+       
+       auto runtime = endTime - mStartTime;
+       auto perSecond = static_cast<double>(BlockSize) / runtime.total_milliseconds() * 1000.0;
+       std::cout << "#" << mTotal << "(" << perSecond << " per second)" << std::endl;
+       
+       mStartTime = now();
+   }
+};
+
 TEST_CASE("co::Routine: coroutine in coroutine")
 {
    using namespace std::literals;
@@ -101,10 +133,10 @@ TEST_CASE("co::Routine: coroutine in coroutine")
       size_t calls{};
       std::set<std::thread::id> outerCoRoEndThreads;
       
+      Bench bench;
       for (int i=0; i < LoopCnt; i++)
       {
-         if ((i-1 & 0x3FF) == 0x3FF)
-            std::cout << "#" << i << std::endl;
+         bench.update();
          
          co::Routine outerCoRo{[&]() {
             auto func = [&](){
@@ -132,10 +164,10 @@ TEST_CASE("co::Routine: coroutine in coroutine")
       
      size_t calls{};
       
+      Bench bench;
       for (int i=0; i < LoopCnt; i++)
       {
-         if ((i-1 & 0x3FF) == 0x3FF)
-            std::cout << "#" << i << std::endl;
+         bench.update();
          
          co::Routine outerCoRo{[&]() {
             auto func = [&](){
