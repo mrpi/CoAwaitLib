@@ -7,11 +7,122 @@
 #include <boost/asio.hpp>
 #include <boost/thread.hpp>
 #include <boost/date_time.hpp>
+#include <boost/variant.hpp>
 
 namespace co
 {
 namespace impl
 {
+struct Unset{};
+
+template<typename T>
+struct ValueHandling
+{
+    using PlaceholderType = T;
+    using Type = boost::variant<Unset, PlaceholderType, std::exception_ptr>;
+   
+    template<typename Callable>
+    static void setByResult(Type& value, Callable&& f)
+    {
+        try
+        {
+            value = f();
+        }
+        catch(...)
+        {
+            value = std::current_exception();
+        }
+    }
+    
+    static T get(Type& value)
+    {
+        if (value.which() == 2)
+           std::rethrow_exception(boost::get<std::exception_ptr>(value));
+        return boost::get<T>(value);
+    }
+};
+
+struct StatelessT
+{
+};   
+
+template<>
+struct ValueHandling<void>
+{
+    using PlaceholderType = StatelessT;
+    using Type = boost::variant<Unset, PlaceholderType, std::exception_ptr>;
+   
+    template<typename Callable>
+    static void setByResult(Type& value, Callable&& f)
+    {
+        try
+        {
+            f();
+            value = StatelessT{};
+        }
+        catch(...)
+        {
+            value = std::current_exception();
+        }
+    }
+    
+    static void get(Type& value)
+    {
+        if (value.which() == 2)
+           std::rethrow_exception(boost::get<std::exception_ptr>(value));
+    }
+};
+
+template<>
+struct ValueHandling<StatelessT>
+{
+    using PlaceholderType = StatelessT;
+    using Type = boost::variant<Unset, PlaceholderType, std::exception_ptr>;
+   
+    template<typename Callable>
+    static void setByResult(Type& value, Callable&& f)
+    {
+        try
+        {
+            value = f();
+        }
+        catch(...)
+        {
+            value = std::current_exception();
+        }
+    }
+    
+    static void get(Type& value)
+    {
+        if (value.which() == 2)
+           std::rethrow_exception(boost::get<std::exception_ptr>(value));
+    }
+};
+
+template<typename T>
+using Value = typename ValueHandling<T>::Type;
+
+template<typename T>
+using PlaceholderType = typename ValueHandling<T>::PlaceholderType;
+
+template<typename T>
+inline bool isSet(const boost::variant<Unset, T, std::exception_ptr>& val)
+{
+    return val.which() != 0;
+}
+
+template<typename T>
+inline bool isException(const boost::variant<Unset, T, std::exception_ptr>& val)
+{
+    return val.which() == 2;
+}
+
+template<typename Callable>
+using ResultType = decltype(std::declval<Callable>()());
+
+template<typename Callable>
+using HandlerForResult = ValueHandling<ResultType<Callable>>;
+   
 struct ContinuationTask
 {
    virtual void operator()() = 0;
@@ -80,15 +191,13 @@ public:
       return !memcmp(&continuationPtr, &impl::InvalidHandle, sizeof(void*));
    }
    
-   inline T get_unchecked()
+   inline auto get_unchecked()
    {
       assert(is_ready_weak());
-      if (exception)
-         std::rethrow_exception(exception);
-      return value;
+      return ValueHandling<T>::get(value);
    }
 
-   T get_blocking()
+   auto get_blocking()
    {
       if (!is_ready_weak())
          wait();
@@ -154,7 +263,7 @@ public:
 
    void set_exception(std::exception_ptr except)
    {
-      exception = std::move(except);
+      value = std::move(except);
       on_ready();
    }
 
@@ -172,8 +281,7 @@ private:
    }
 
    std::atomic<ContinuationTask*> continuationPtr{nullptr};
-   T value{};
-   std::exception_ptr exception;
+   Value<T> value{};
 };
 }
 
@@ -181,17 +289,17 @@ template <typename T>
 class future
 {
  private:
-   std::shared_ptr<impl::LightFutureData<T>> mData;
+   std::shared_ptr<impl::LightFutureData<impl::PlaceholderType<T>>> mData;
 
-   future(std::shared_ptr<impl::LightFutureData<T>>&& data) : mData(std::move(data)) {}
-
+   future(std::shared_ptr<impl::LightFutureData<impl::PlaceholderType<T>>>&& data) : mData(std::move(data)) {}
+   
  public:
-   static future fromData_(std::shared_ptr<impl::LightFutureData<T>> data)
+   future() = default;
+   
+   static future fromData_(std::shared_ptr<impl::LightFutureData<impl::PlaceholderType<T>>> data)
    {
       return future{std::move(data)};
    }
-
-   future() = default;
 
    bool is_ready() const
    {
@@ -282,6 +390,28 @@ class promise
    }
 };
 
+template <>
+class promise<void>
+{
+ private:
+   std::shared_ptr<impl::LightFutureData<impl::StatelessT>> mData;
+
+ public:
+   inline promise() : mData{std::make_shared<impl::LightFutureData<impl::StatelessT>>()} {}
+
+   future<void> get_future() { return future<void>::fromData_(mData); }
+
+   void set_value()
+   {
+      mData->set_value(impl::StatelessT{});
+   }
+
+   void set_exception(std::exception_ptr except)
+   {
+      mData->set_exception(std::move(except));
+   }
+};
+
 template <typename FUNC>
 auto async(boost::asio::io_service& ioService, FUNC&& func)
 {
@@ -299,14 +429,20 @@ auto async(boost::asio::io_service& ioService, FUNC&& func)
 template <typename T>
 auto make_ready_future(T&& val)
 {
-   auto data = std::make_shared<impl::LightFutureData<T>>(std::forward<T>(val));
+   auto data = std::make_shared<impl::LightFutureData<impl::PlaceholderType<T>>>(std::forward<T>(val));
    return future<T>::fromData_(std::move(data));
+}
+
+inline future<void> make_ready_future()
+{
+   auto data = std::make_shared<impl::LightFutureData<impl::PlaceholderType<void>>>(impl::PlaceholderType<void>{});
+   return future<void>::fromData_(std::move(data));
 }
 
 template <typename T>
 auto make_exceptional_future(std::exception_ptr ex)
 {
-   auto data = std::make_shared<impl::LightFutureData<T>>();
+   auto data = std::make_shared<impl::LightFutureData<impl::PlaceholderType<T>>>();
    data->set_exception(std::move(ex));
    return future<T>::fromData_(std::move(data));
 }

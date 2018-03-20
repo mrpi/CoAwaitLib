@@ -3,16 +3,40 @@
 #include <boost/coroutine2/all.hpp>
 #include <boost/coroutine2/protected_fixedsize_stack.hpp>
 
+#include <boost/variant.hpp>
+
 namespace co
 {
+   struct InlineBufferStackAllocator
+   {
+      std::vector<std::uint8_t>* mBuffer;
+      // void* mOverwriteCheck{this};
+      
+      InlineBufferStackAllocator(std::vector<std::uint8_t>& buffer)
+        : mBuffer(&buffer)
+      {
+      }
+      
+      boost::context::stack_context allocate()
+      {
+          //std::cout << "stack allocating " << (void*)mBuffer->data() << std::endl;
+          boost::context::stack_context res;
+          res.sp = mBuffer->data() + mBuffer->size() - 1;
+          res.size = mBuffer->size();
+          return res;
+      }
+
+      void deallocate(boost::context::stack_context& sc)
+      {
+          //std::cout << "stack deallocating " << (void*)sc.sp << std::endl;
+          //assert(mOverwriteCheck == this);
+      }
+   };
    
    class Routine
    {
    private:
-      struct StatelessT
-      {
-      };
-      using T = StatelessT;
+      using T = void;
       
       using CoRo = boost::coroutines2::coroutine<void>;
 
@@ -28,25 +52,19 @@ namespace co
          return current;
       }
 
-      template <typename Func>
-      Routine(Func&& func)
-       : mPull([ this, f = std::forward<Func>(func) ](CoRo::push_type & sink) {
+      template <typename StackAllocator, typename Func>
+      Routine(StackAllocator& alloc, Func&& func)
+       : mPull(alloc, [ this, f = std::forward<Func>(func) ](CoRo::push_type & sink) {
             mPush = &sink;
             mOuter = current().exchange(this, std::memory_order_acquire);
 
-            try
-            {
-               f();
+            impl::ValueHandling<T>::setByResult(mSetResult.mValue, f);
                
-               auto replaced = mPostLeave.exchange(&mSetResult, std::memory_order_release);
-               assert(replaced == nullptr);
-               
-               // mResult.set_value(T{});
-            }
-            catch(...)
-            {
-               mResult.set_exception(std::current_exception());
-            }
+#define USE_RESULTSETTER
+#ifdef USE_RESULTSETTER
+            auto replaced = mPostLeave.exchange(&mSetResult, std::memory_order_release);
+            assert(replaced == nullptr);
+#endif
 
             auto exitedCoro = current().exchange(mOuter, std::memory_order_release);
             assert(this == exitedCoro);
@@ -183,14 +201,13 @@ namespace co
          return true;
       }
 
-   private:      
-#if 1
+   private:
+#ifdef USE_RESULTSETTER
       struct ResultSetter : PostLeaveFunction
       {
-      private:
          Routine* mParent{};
+         impl::Value<T> mValue;
          
-      public:
          ResultSetter(Routine* parent)
           : mParent(parent)
          {}
@@ -199,8 +216,11 @@ namespace co
          {                              
                Routine* expected = nullptr;
                Routine* disabled =  reinterpret_cast<Routine*>(1);
-               mParent->mContinuation.compare_exchange_strong(expected, disabled);
-               mParent->mResult.set_value(T{});
+               mParent->mContinuation.compare_exchange_strong(expected, disabled, std::memory_order_relaxed);
+               if (impl::isException(mValue))
+                  mParent->mResult.set_exception(std::move(boost::get<std::exception_ptr>(mValue)));
+               else
+                  mParent->mResult.set_value(std::move(boost::get<impl::PlaceholderType<T>>(mValue)));
                return true;
          }
       };
@@ -209,7 +229,7 @@ namespace co
 #endif
       std::atomic<PostLeaveFunction*> mPostLeave{};
 
-      impl::LightFutureData<T> mResult;
+      impl::LightFutureData<impl::PlaceholderType<T>> mResult;
       std::atomic<Routine*> mContinuation{};
 
       CoRo::push_type* mPush{};

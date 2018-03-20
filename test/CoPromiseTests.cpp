@@ -30,3 +30,30 @@ TEST_CASE("co::promise")
       t.join();
    }
 }
+
+TEST_CASE("co::promise<void>")
+{
+   co::promise<void> promise;
+   auto future = promise.get_future();
+   REQUIRE(future.valid());
+   REQUIRE_FALSE(future.is_ready());
+      
+   SECTION("set_value() synchron")
+   {
+      promise.set_value();
+      
+      REQUIRE(future.is_ready());       
+      REQUIRE_NOTHROW(future.get());
+   }
+   
+   SECTION("set_value() in std::thread")
+   {
+      std::thread t{[&promise]() { promise.set_value(); }};
+      
+      // The following check could fail sporadically as the thread may have executed already
+      // REQUIRE_FALSE(future.is_ready());
+      
+      REQUIRE_NOTHROW(future.get());
+      t.join();
+   }
+}
