@@ -1,3 +1,5 @@
+#pragma once
+
 #include <atomic>
 #include <stdexcept>
 #include <thread>
@@ -191,6 +193,21 @@ public:
       return !memcmp(&continuationPtr, &impl::InvalidHandle, sizeof(void*));
    }
    
+   inline bool await_ready()
+   {
+       return is_ready_weak();
+   }
+   
+   inline bool await_suspend(ContinuationTask& func)
+   {
+      return suspend(func);
+   }
+   
+   inline auto await_resume()
+   {
+      return get_unchecked();
+   }
+   
    inline auto get_unchecked()
    {
       assert(is_ready_weak());
@@ -314,6 +331,11 @@ class future
    inline T await_resume()
    {
       return get_unchecked();
+   }
+   
+   inline T await_synchron()
+   {
+      return get();
    }
 
    inline T get_unchecked()

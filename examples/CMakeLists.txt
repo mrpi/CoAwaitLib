@@ -13,3 +13,8 @@ file(GLOB clientSources asio_echo_client.cpp)
 set(allClientSources ${clientSources} ${headers})
 add_executable(asio_echo_client ${allClientSources})
 target_link_libraries(asio_echo_client ${CONAN_LIBS})
+
+file(GLOB readmeSources readme_example.cpp)
+set(allReadmeSources ${readmeSources} ${headers})
+add_executable(readme_example ${allReadmeSources})
+target_link_libraries(readme_example ${CONAN_LIBS})

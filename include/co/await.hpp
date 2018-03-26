@@ -1,11 +1,11 @@
+#pragma once
+
 #include "routine.hpp"
 
 #include <boost/optional.hpp>
 
 namespace co
 {
-   using IoContextProvider = boost::asio::io_service& (*)();
-   
    namespace impl
    {
       template <typename T>
@@ -45,59 +45,7 @@ namespace co
       struct HasAwaitSynchronMethod<T, std::void_t<decltype(std::declval<T>().await_synchron())>>  : std::true_type
       {
       };
-      
-      inline boost::asio::io_service& defaultIoContextProvider()
-      {
-          static boost::asio::io_service ioc;
-          return ioc;
-      }
-      
-      inline IoContextProvider& currentIoContextProvider()
-      {
-          static IoContextProvider provider{&defaultIoContextProvider};
-          return provider;
-      }
    }
-   
-   inline void setDefaultIoContextProvider(IoContextProvider ioContextProvider)
-   {
-       impl::currentIoContextProvider() = ioContextProvider;
-   }
-   
-   inline boost::asio::io_service& defaultIoContext()
-   {
-       return impl::currentIoContextProvider()();
-   }
-   
-   class IoContextThreads
-   {
-   private:
-      boost::optional<boost::asio::io_service::work> mIosWork;
-      std::vector<std::thread> mThreads;
-               
-   public:
-      explicit IoContextThreads(size_t cnt, boost::asio::io_service& ioc = defaultIoContext())
-       : mIosWork{ioc}, mThreads(cnt)
-      {
-          if (ioc.stopped())
-             ioc.reset();
-         
-          for (auto& t : mThreads)
-             t = std::thread{[&ioc](){ ioc.run(); }};
-      }
-      
-      IoContextThreads(const IoContextThreads&) = delete;
-      IoContextThreads& operator=(const IoContextThreads&) = delete;
-      
-      ~IoContextThreads()
-      {
-         mIosWork.reset();
-   
-         for (auto& t : mThreads)
-            t.join();
-
-      }
-   };
       
    template <typename T, typename = void>
    class Awaiter : public impl::DefaultAwaiter<T>
@@ -119,13 +67,13 @@ namespace co
    };
 
    template <>
-   class Awaiter<boost::asio::io_service>
+   class Awaiter<boost::asio::io_context>
    {
    private:
-      boost::asio::io_service& mIos;
+      boost::asio::io_context& mIoc;
 
    public:
-      Awaiter(boost::asio::io_service& ios) : mIos{ios}
+      Awaiter(boost::asio::io_context& ioc) : mIoc{ioc}
       {
       }
 
@@ -141,7 +89,7 @@ namespace co
       template <typename Handle>
       bool await_suspend(Handle&& cb)
       {
-         mIos.post(std::ref(cb));
+         mIoc.post(std::ref(cb));
          return true;
       }
    };
@@ -149,14 +97,14 @@ namespace co
    template <class Rep, class Period>
    struct AsioSleep
    {
-      boost::asio::io_service& ioService;
+      boost::asio::io_context& ioContext;
       std::chrono::duration<Rep, Period> sleepFor;
    };
    
    template <class Rep, class Period>
-   auto asioSleep(boost::asio::io_service& ioService, std::chrono::duration<Rep, Period> value)
+   auto asioSleep(boost::asio::io_context& context, std::chrono::duration<Rep, Period> value)
    {
-       return AsioSleep<Rep, Period>{ioService, std::move(value)};
+       return AsioSleep<Rep, Period>{context, std::move(value)};
    }
    
    namespace impl
@@ -176,7 +124,7 @@ namespace co
       boost::asio::deadline_timer mTimer;
 
    public:
-      Awaiter(AsioSleep<Rep, Period> value) : mValue{std::move(value.sleepFor)}, mTimer{value.ioService, impl::toBoostPosixTime(mValue)}
+      Awaiter(AsioSleep<Rep, Period> value) : mValue{std::move(value.sleepFor)}, mTimer{value.ioContext, impl::toBoostPosixTime(mValue)}
       {
       }
 
@@ -207,7 +155,7 @@ namespace co
    {
    public:
       Awaiter(const std::chrono::duration<Rep, Period>& val)
-       : Awaiter<AsioSleep<Rep, Period>>(asioSleep(defaultIoContext(), val))
+       : Awaiter<AsioSleep<Rep, Period>>(asioSleep(co::Routine::currentIoContext(), val))
       {}       
    };
    
@@ -257,7 +205,7 @@ namespace co
          AwaiterFor<T>& mAw;
          Routine::Runner mRunner;
 
-         PostLeave(AwaiterFor<T>& aw, Routine& caller) : mAw(aw), mRunner(&caller)
+         PostLeave(AwaiterFor<T>& aw, Routine::Data& caller) : mAw(aw), mRunner(&caller)
          {
          }
 
@@ -267,9 +215,13 @@ namespace co
          }
       };
 
-      PostLeave pl{awaiter, const_cast<Routine&>(*current)};
+      PostLeave pl{awaiter, const_cast<Routine::Data&>(*current)};
       current->leave(&pl);
 
       return awaiter.await_resume();
    }
+   
+   template<typename T>
+   using PmrVector = std::vector<T, boost::container::pmr::polymorphic_allocator<T>>;
+
 }

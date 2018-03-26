@@ -1,6 +1,8 @@
 CoAwaitLib - co::await at any point of your code
 ===
 
+Write highly parallel and non-blocking code that looks and feels nearly like simple synchron code.
+
 A header-only stackfull coroutine library.
 Make your own types awaitable, much like in the Coroutine TS. 
    
@@ -8,14 +10,35 @@ Make your own types awaitable, much like in the Coroutine TS.
 
 ```c++
 #include <co/await.hpp>
-#include <chrono>
 
-using std::literals;
+using namespace std::literals;
 
-void poll()
+bool done(int idx)
 {
-   while(!done())
-     co::await(25ms);
+    return rand() % 32 == idx;
+}
+
+void poll(int idx)
+{
+    while (!done(idx))
+        co::await(10ms);
+    std::cout << "Found " << idx << std::endl;
+}
+
+int main(int argc, char* argv[])
+{
+    if (argc >= 2 && argv[1] == "async"s)
+    {
+        boost::asio::io_context context;
+        co::Routine{context, []{poll(0);}}.detach();
+        co::Routine{context, []{poll(1);}}.detach();
+        context.run();
+    }
+    else
+    {
+        poll(0);
+        poll(1);
+    }
 }
 ```
 

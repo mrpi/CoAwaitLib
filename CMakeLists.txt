@@ -10,6 +10,7 @@ endif()
 include_directories("./include")
 
 add_subdirectory("test")
+add_subdirectory("examples")
 #add_subdirectory("benchmark")
 
 enable_testing()

@@ -2,9 +2,66 @@
 
 #include <catch.hpp>
 
-std::vector<std::uint8_t> stackBuf1(boost::context::stack_traits::default_size() * 2);
-std::vector<std::uint8_t> stackBuf2(boost::context::stack_traits::default_size(), 0);
-std::vector<std::uint8_t> stackBuf3(boost::context::stack_traits::default_size(), 0);
+#include <boost/container/pmr/synchronized_pool_resource.hpp>
+#include <boost/container/pmr/vector.hpp>
+#include <boost/container/flat_map.hpp>
+#include <boost/container/small_vector.hpp>
+#include <boost/container/pmr/vector.hpp>
+
+#include "helper.hpp"
+
+class MultiBufferPoolsMemoryResource : public boost::container::pmr::memory_resource
+{
+private:
+   boost::container::pmr::memory_resource* mUpstream;
+   boost::container::flat_map<size_t, boost::container::small_vector<void*, 4>> mPools;
+   size_t mMaxSize{0};
+   
+public:
+   MultiBufferPoolsMemoryResource(boost::container::pmr::memory_resource* upstream = boost::container::pmr::get_default_resource())
+    : mUpstream(upstream)
+   {}
+   
+   ~MultiBufferPoolsMemoryResource()
+   {
+       for(auto& p : mPools)
+       {
+           auto size = p.first;
+           for(auto& buf : p.second)
+              mUpstream->deallocate(buf, size, 8);
+       }
+   }
+   
+    virtual void* do_allocate(std::size_t bytes, std::size_t alignment)
+    {
+        assert(alignment <= 8); // other alignments have to be supported in destructor too
+       
+        auto& list = mPools[bytes];
+        if (list.empty())
+           return mUpstream->allocate(bytes, 8);
+        
+        auto res = list.back();
+        list.pop_back();
+        return res;
+    }
+    
+    virtual void do_deallocate(void* p, std::size_t bytes, std::size_t alignment)
+    {
+        auto& entry = mPools[bytes];
+        entry.push_back(p);
+        auto s = entry.size();
+        if (s > mMaxSize)
+        {
+           mMaxSize = s;
+           std::cout << "Max size of pool " << bytes << " is " << s << std::endl;
+        }
+    }
+    
+    virtual bool do_is_equal(const boost::container::pmr::memory_resource& other) const noexcept
+    {
+        return this == &other;
+    }
+};
 
 TEST_CASE("co::Routine: await sleep on boost::asio::io_service")
 {
@@ -15,9 +72,7 @@ TEST_CASE("co::Routine: await sleep on boost::asio::io_service")
    
    std::thread t{[&ios](){ ios.run(); }};
    
-   co::InlineBufferStackAllocator bufAlloc{stackBuf1};
-   
-   co::Routine coro{bufAlloc, [&ios]() {
+   co::Routine coro{[&ios]() {
       auto startThread = std::this_thread::get_id();
 
       co::await(co::asioSleep(ios, 1ms));
@@ -34,7 +89,7 @@ TEST_CASE("co::Routine: await sleep on boost::asio::io_service")
       // there is only one thread executing io_service::run()
       REQUIRE(middleThread == endThread);
    }};
-   coro.get();
+   coro.join();
    
    iosWork.reset();
    t.join();
@@ -46,9 +101,7 @@ TEST_CASE("co::Routine: await sleep on boost::asio::io_service directly with chr
    
    co::IoContextThreads threads{1};
    
-   co::InlineBufferStackAllocator bufAlloc{stackBuf1};
-   
-   co::Routine coro{bufAlloc, []() {
+   co::Routine coro{[]() {
       auto startThread = std::this_thread::get_id();
 
       co::await(1ms);
@@ -65,7 +118,7 @@ TEST_CASE("co::Routine: await sleep on boost::asio::io_service directly with chr
       // there is only one thread executing io_service::run()
       REQUIRE(middleThread == endThread);
    }};
-   coro.get();
+   coro.join();
 }
 
 TEST_CASE("co::Routine: await boost::asio::io_service (switch to a thread that is executing io_service::run())")
@@ -74,10 +127,8 @@ TEST_CASE("co::Routine: await boost::asio::io_service (switch to a thread that i
    boost::optional<boost::asio::io_service::work> iosWork{ios};
    
    std::thread t{[&ios](){ ios.run(); }};
-   
-   co::InlineBufferStackAllocator bufAlloc{stackBuf1};
-   
-   co::Routine coro{bufAlloc, [&ios]() {
+
+   co::Routine coro{[&ios]() {
       auto startThread = std::this_thread::get_id();
 
       co::await(ios);
@@ -85,43 +136,11 @@ TEST_CASE("co::Routine: await boost::asio::io_service (switch to a thread that i
       auto endThread = std::this_thread::get_id();
       REQUIRE(endThread != startThread);
    }};
-   coro.get();
+   coro.join();
    
    iosWork.reset();
    t.join();
 }
-
-inline auto now() { return boost::posix_time::microsec_clock::local_time(); }
-
-class Bench
-{
-private:
-   boost::posix_time::ptime mStartTime;
-   size_t mIdx{0};
-   size_t mTotal{0};
-   static constexpr size_t BlockSize = 1024 * 16;
-   
-public:
-   Bench()
-    : mStartTime(now())
-   {}
-   
-   void update()
-   {
-       mTotal++;
-       if (mIdx++ != BlockSize)
-          return;
-     
-       mIdx = 0;
-       auto endTime = now();
-       
-       auto runtime = endTime - mStartTime;
-       auto perSecond = static_cast<double>(BlockSize) / runtime.total_milliseconds() * 1000.0;
-       std::cout << "#" << std::setw(8) << mTotal << " (" << std::setw(10) << std::setprecision(2) << std::fixed << perSecond << " per second)" << std::endl;
-       
-       mStartTime = now();
-   }
-};
 
 TEST_CASE("co::Routine: coroutine in coroutine")
 {
@@ -132,20 +151,15 @@ TEST_CASE("co::Routine: coroutine in coroutine")
    co::IoContextThreads threads{2};
    auto& ios = co::defaultIoContext();
    
-   std::cout << "buf1: " << (void*)stackBuf1.data() << " with size " << stackBuf1.size() << std::endl;
-   co::InlineBufferStackAllocator bufAllocOuter{stackBuf1};
-   std::cout << "buf2: " << (void*)stackBuf2.data() << " with size " << stackBuf2.size() << std::endl;
-   co::InlineBufferStackAllocator bufAllocInner1{stackBuf2};
-   std::cout << "buf3: " << (void*)stackBuf3.data() << " with size " << stackBuf3.size() << std::endl;
-   co::InlineBufferStackAllocator bufAllocInner2{stackBuf3};
-   
    SECTION("with inner coroutine empty")
    {
+      MultiBufferPoolsMemoryResource memoryPool;
+
       bool processed = false;
-      co::Routine{bufAllocOuter, [&]() {
-         co::await(co::Routine{bufAllocInner1, [](){}});
+      co::Routine{[&]() {
+         co::await(co::Routine{[](){}});
          processed = true;
-      }}.get();
+      }}.join();
       
       REQUIRE(processed);
    }
@@ -153,18 +167,29 @@ TEST_CASE("co::Routine: coroutine in coroutine")
    SECTION("with inner coroutine awaiting")
    {
       bool processed = false;
-      co::Routine{bufAllocOuter, [&]() {
-         co::await(co::Routine{bufAllocInner1, [&](){
+      co::Routine{[&]() {
+         co::await(co::Routine{[&](){
             co::await(ios);
             processed = true;
          }});
-      }}.get();
+      }}.join();
       
       REQUIRE(processed);
    }
+}
+
+TEST_CASE("co::Routine: coroutine in coroutine stress tests", "[.StressTest]")
+{
+   using namespace std::literals;
    
-   SECTION("with one inner coroutine", "[.benchmark]")
+   static_assert(co::supportsSynchronAwait<co::Routine&>, "");
+   
+   co::IoContextThreads threads{2};
+   auto& ios = co::defaultIoContext();
+   
+   SECTION("with one inner coroutine")
    {
+      MultiBufferPoolsMemoryResource memoryPool;
       constexpr size_t LoopCnt = 250000;
       
       size_t calls{};
@@ -172,22 +197,22 @@ TEST_CASE("co::Routine: coroutine in coroutine")
       
       std::cout << "io_context: " << (void*)&co::defaultIoContext() << std::endl;
       
-      Bench bench;
+      co_tests::Bench bench;
       for (int i=0; i < LoopCnt; i++)
       {
          bench.update();
          
-         co::Routine outerCoRo{bufAllocOuter, [&]() {
+         co::Routine outerCoRo{[&]() {
             auto func = [&](){
                   for(int i=0; i < 1; i++)
                      co::await(ios);
                };
 
-            co::Routine innerCoRo1{bufAllocInner1, func};
+            co::Routine innerCoRo1{func};
             co::await(innerCoRo1);
             calls++;
             outerCoRoEndThreads.insert(std::this_thread::get_id());
-         }};
+         }, &memoryPool};
          
          co::await(outerCoRo);
          
@@ -198,33 +223,37 @@ TEST_CASE("co::Routine: coroutine in coroutine")
       REQUIRE(outerCoRoEndThreads.size() <= 3);
    }
    
-   SECTION("with multiple inner coroutines", "[.benchmark]")
+   SECTION("with multiple inner coroutines")
    {
+      MultiBufferPoolsMemoryResource memoryPool;
       constexpr size_t LoopCnt = 250000;
       
       std::cout << "io_context: " << (void*)&co::defaultIoContext() << std::endl;
       
      size_t calls{};
       
-      Bench bench;
+      co_tests::Bench bench;
       for (int i=0; i < LoopCnt; i++)
       {
          bench.update();
          
-         co::Routine outerCoRo{bufAllocOuter, [&]() {
+         co::Routine outerCoRo{[&]() {
             auto func = [&](){
                   for(int i=0; i < 1; i++)
                      co::await(ios);
             };
                
-            co::Routine innerCoRo1{bufAllocInner1, func};
-            co::Routine innerCoRo2{bufAllocInner2, func};            
+            co::PmrVector<co::Routine> innerCoRos(&memoryPool);
+            innerCoRos.reserve(2);
+            
+            for (int i1=0; i1 < 2; i1++)
+               innerCoRos.emplace_back(func);
 
-            co::await(innerCoRo1);
-            co::await(innerCoRo2);
+            co::await(innerCoRos[0]);
+            co::await(innerCoRos[1]);
 
             calls++;
-         }};
+         }, &memoryPool};
          
          co::await(outerCoRo);
          
@@ -232,21 +261,22 @@ TEST_CASE("co::Routine: coroutine in coroutine")
       }
    }
    
-   SECTION("with inner coroutine (always ready)", "[.benchmark]")
+   SECTION("with inner coroutine (always ready)")
    {
+      MultiBufferPoolsMemoryResource memoryPool;
       constexpr size_t LoopCnt = 250000;
       size_t calls{};
       
-      Bench bench;
+      co_tests::Bench bench;
       for (int i=0; i < LoopCnt; i++)
       {
          bench.update();
          
-         co::Routine outerCoRo{bufAllocOuter, [&]() {
-            co::Routine innerCoRo{bufAllocInner1, [&](){
+         co::Routine outerCoRo{[&]() {
+            co::Routine innerCoRo{[&](){
                   for(int i=0; i < 1; i++)
                      co::await(ios);
-               }};
+               }, &memoryPool};
             
             while(!innerCoRo.is_ready())
                ;
@@ -254,9 +284,9 @@ TEST_CASE("co::Routine: coroutine in coroutine")
             co::await(innerCoRo);
 
             calls++;
-         }};
+         }, &memoryPool};
          
-         outerCoRo.get();
+         outerCoRo.join();
          
          REQUIRE(calls == i+1);
       }
