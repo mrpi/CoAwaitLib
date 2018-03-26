@@ -16,15 +16,12 @@ void poll(int idx)
 
 int main(int argc, char* argv[])
 {
-    if (argc >= 2 && argv[1] == "async"s)
-    {
+    if (argc >= 2 && argv[1] == "async"s) {
         boost::asio::io_context context;
-        co::Routine{context, []{poll(0);}}.detach();
-        co::Routine{context, []{poll(1);}}.detach();
+        co::Routine {context, []{poll(0);}} .detach();
+        co::Routine {context, []{poll(1);}} .detach();
         context.run();
-    }
-    else
-    {
+    } else {
         poll(0);
         poll(1);
     }
