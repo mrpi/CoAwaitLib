@@ -43,6 +43,8 @@ int main(int argc, char* argv[])
 
 co::await() in stackfull coroutines allows you to make your code run asynchron without changing every interface to return a future<T>/task<T> that may interally call asynchron code.
 
+co::await() is non-blocking when it's running inside of a coroutine and blocking when it's running outside of a coroutine. This allows a smooth migration.
+
 ## Requirements
 
 - C++14 (GCC 7.2, CLANG 4.0, MSVC 2015 or higher)
