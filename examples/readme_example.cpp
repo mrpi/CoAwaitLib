@@ -10,7 +10,7 @@ bool done(int idx)
 void poll(int idx)
 {
     while (!done(idx))
-        co::await(10ms);
+        co::await(10ms); // sleep non-blocking
     std::cout << "Found " << idx << std::endl;
 }
 
