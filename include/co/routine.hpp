@@ -10,17 +10,11 @@
 #include <boost/container/pmr/polymorphic_allocator.hpp>
 #include <boost/container/pmr/memory_resource.hpp>
 #include <boost/container/pmr/global_resource.hpp>
-
-namespace boost
-{
-   namespace asio
-   {
-      
-   }
-}
+#include <unordered_map>
 
 namespace co
-{   
+{
+
    class Routine
    {
    private:
@@ -258,7 +252,7 @@ namespace co
       {
          template <typename Func>
          Data(boost::asio::io_context& context, size_t stackSize, Func&& func, boost::container::pmr::polymorphic_allocator<std::uint8_t> alloc)
-          : mContext(context), mStackSize{stackSize}, mAllocator(alloc), mPull(StackAllocator{this}, [ this, f = std::forward<Func>(func) ](CoRo::push_type & sink) {
+          : mContext(context), mStackSize{stackSize}, mAllocator(alloc), mLocalStorage(mAllocator), mPull(StackAllocator{this}, [ this, f = std::forward<Func>(func) ](CoRo::push_type & sink) {
                mPush = &sink;
                mOuter = current().exchange(this, std::memory_order_acquire);
 
@@ -343,6 +337,51 @@ namespace co
          impl::LightFutureData<impl::PlaceholderType<T>> mResult;
          std::atomic<Data*> mContinuation{};
 
+         struct StorageItem
+         {
+            StorageItem() = default;
+            
+            template<typename T>
+            explicit StorageItem(T* t, void (*ownCleanup)(T*))
+              : data(t), cleanupFunction([ownCleanup](void* val){ ownCleanup(static_cast<T*>(val)); })
+            {
+            }
+            
+            ~StorageItem()
+            {
+               if (cleanupFunction)
+                  cleanupFunction(data);
+            }
+            
+            StorageItem(const StorageItem&) = delete;
+            StorageItem& operator=(const StorageItem&) = delete;
+            
+            StorageItem(StorageItem&& other)
+             : data(other.data), cleanupFunction(other.cleanupFunction)
+            {
+               other.cleanupFunction = std::function<void (void*)>{};
+            }
+            
+            StorageItem& operator=(StorageItem&& other)
+            {
+               if (cleanupFunction)
+                  cleanupFunction(data);
+                
+               data = other.data;
+               cleanupFunction = other.cleanupFunction;
+
+               other.cleanupFunction = std::function<void (void*)>{};
+            }
+            
+            void* data{};
+            std::function<void (void*)> cleanupFunction;
+         };
+               
+         template<typename Key, typename T, typename Hash = std::hash<Key>, typename KeyEqual = std::equal_to<Key>>
+         using PmrMap = std::unordered_map<Key, T, Hash, KeyEqual, boost::container::pmr::polymorphic_allocator< std::pair<const Key, T> >>;
+         
+         PmrMap<const void*, StorageItem> mLocalStorage;
+         
          CoRo::push_type* mPush{};
          Routine::Data* mOuter{};
          CoRo::pull_type mPull;
@@ -366,6 +405,9 @@ namespace co
              alloc.deallocate(reinterpret_cast<std::uint8_t*>(data), size);
          }
       };
+      
+      template <typename T>
+      class SpecificPtr;
       
       std::unique_ptr<Data, Destructor> d;
    };

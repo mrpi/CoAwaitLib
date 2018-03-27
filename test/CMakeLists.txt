@@ -1,5 +1,4 @@
 
-
 include_directories(.)
 
 file(GLOB sources "*.hpp" "*.cpp")
