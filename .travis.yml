@@ -15,6 +15,7 @@ install:
 - sudo pip3 install conan
 # Automatic detection of your arch, compiler, etc.
 - conan user
+- conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-conan
 
 script:
 - mkdir build && cd build
