@@ -1,11 +1,19 @@
 cmake_minimum_required(VERSION 2.8)
 
+set (CMAKE_CXX_STANDARD 14)
+
 project(co)
 
 if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 	include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 	conan_basic_setup()
 endif()
+
+#if(CONAN_LIBCXX STREQUAL "libstdc++11")
+    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=1)
+#elseif(CONAN_LIBCXX STREQUAL "libstdc++")
+#    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
+#endif()
 
 include_directories("./include")
 
