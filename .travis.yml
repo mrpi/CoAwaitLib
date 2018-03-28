@@ -16,6 +16,7 @@ install:
 # Automatic detection of your arch, compiler, etc.
 - conan user
 - conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-conan
+- sed 's/^compiler.libcxx=libstdc++$/compiler.libcxx=libstdc++11/' -i ~/.conan/profiles/default
 
 script:
 - mkdir build && cd build
