@@ -16,5 +16,8 @@ install:
 - conan user
 
 script:
-# Download dependencies, build, test and create package
-- conan create user/channel
+- mkdir build && cd build
+- conan install ..
+- cmake .. -DCMAKE_BUILD_TYPE=Release
+- make -j2
+- ./bin/tests
