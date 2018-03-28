@@ -50,7 +50,7 @@ co::await() is non-blocking when it's running inside of a coroutine and blocking
 - co::Routine: A dispatchable and joinable coroutine handle with support for polimorphic allocators.
 - co::Mutex: A mutex type that is compatible with std::unique_lock and suspends the current coroutine instead of blocking the thread.
 - co::Routine::SpecificPtr: Provides coroutine local storage. Uses boost::thread_specific_ptr when called from outside of a coroutine.
-- co::io::tcp::socket: Wrappers arround boost::asio networking types where the synchron functions like read_some and write_some are implemented by awaiting on the async version of these funnctions
+- co::ip::tcp::socket: Wrappers arround boost::asio networking types where the synchron functions like read_some and write_some are implemented by awaiting on the async version of these funnctions
 
 ## Requirements
 
