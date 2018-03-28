@@ -22,5 +22,6 @@ script:
 #- sed 's/^compiler.libcxx=libstdc++$/compiler.libcxx=libstdc++11/' -i ~/.conan/profiles/default
 - conan install .. --build missing -s compiler.libcxx=libstdc++11
 - cmake .. -DCMAKE_BUILD_TYPE=Release
-- cmake --build .
+#- cmake --build .
+- make VERBOSE=1
 - ./bin/tests
