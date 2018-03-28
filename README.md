@@ -57,4 +57,4 @@ co::await() is non-blocking when it's running inside of a coroutine and blocking
 - C++14 (GCC 7.2, CLANG 4.0, MSVC 2015 or higher)
 - [Boost 1.66 or higher](http://www.boost.org/) (context, coroutine2, asio and thread)
 - A platform supported by [boost::context/boost::coroutine2](http://www.boost.org/doc/libs/1_66_0/libs/context/doc/html/context/requirements.html)
-- Catch2 (ony for unit tests)
+- Catch2 (only for unit tests)
