@@ -58,3 +58,25 @@ co::await() is non-blocking when it's running inside of a coroutine and blocking
 - [Boost 1.66 or higher](http://www.boost.org/) (context, coroutine2, asio and thread)
 - A platform supported by [boost::context/boost::coroutine2](http://www.boost.org/doc/libs/1_66_0/libs/context/doc/html/context/requirements.html)
 - Catch2 (only for unit tests)
+
+## Comparsion with C++20 stackless coroutines (Coroutine TS)
+
+Stackless coroutines require compiler support.
+The overhead of stackless coroutines is lower than the overhead of stackfull coroutines like used by this library (with regard to memory and cpu).
+Stackless coroutines require duplications of interfaces that are required to be used synchron and asynchron.
+
+Code that makes use of stackless coroutines has to be sprinkled with many uses of the co_await keyword while a single async operation with this library only requires one co::await() call deep inside of the callstack.
+For instance, stackless coroutines require the specific range-for-co_await syntax for an async range, while this library could do with a regular range-for-loop and (optional) calls of co::await() inside of the begin() method and the  increment operator of the iterator.
+
+## Comparsion with boost::fibre
+
+In terms of developer experience, boost::fibre may be the closest match with this libray.
+Both allow you to write code that looks synchron but does not block complete operating system threads.
+Both are based on boost::context and will benefit from its futher development and fixes.
+This library and boost::fibre are expected to be interchange able with a thin abstraction layer in many cases (TODO: verify).
+
+- boost::fibre is used and test in a much broader range of use cases
+- the performance of boost::fibre is expected to be higher for most use cases (TODO: actual benchmarks)
+- the execution of fibres is based on schedulers while this library is (by default) starting the coroutine execution inline and carry on the execution on an boost::asio::io_context
+- this library is expected to allow a smother integration existing application that could not be switched at once from blocking operations to fibres/coroutines
+- while boost::fibre treats every thread as a fibre, this library distinguishes between regular threads (blocking behavior) and coroutines (non blocking behavior)
