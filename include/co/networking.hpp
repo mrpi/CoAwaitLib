@@ -125,6 +125,12 @@ public:
     std::size_t read_some(const MutableBufferSequence& buffers, boost::system::error_code& ec)
     {
         std::size_t res {};
+        
+        boost::asio::socket_base::bytes_readable command(true);
+        parent().io_control(command);
+        auto bytesReadable = command.get();
+        if (bytesReadable)
+           return parent().read_some(buffers, ec);
 
         impl::LightFutureData<impl::StatelessT> p;
         parent().async_read_some(buffers, [&](const boost::system::error_code & error, std::size_t bytes_transferred) {
