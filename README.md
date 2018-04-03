@@ -80,3 +80,8 @@ This library and boost::fibre are expected to be interchange able with a thin ab
 - the execution of fibres is based on schedulers while this library is (by default) starting the coroutine execution inline and carry on the execution on an boost::asio::io_context
 - this library is expected to allow a smother integration existing application that could not be switched at once from blocking operations to fibres/coroutines
 - while boost::fibre treats every thread as a fibre, this library distinguishes between regular threads (blocking behavior) and coroutines (non blocking behavior)
+
+## API stability
+
+This library is in an early development state.
+APIs are likely to change, but the features are likely to stay.
