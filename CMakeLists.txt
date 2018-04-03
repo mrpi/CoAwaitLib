@@ -9,11 +9,7 @@ if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 	conan_basic_setup()
 endif()
 
-#if(CONAN_LIBCXX STREQUAL "libstdc++11")
-    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=1)
-#elseif(CONAN_LIBCXX STREQUAL "libstdc++")
-#    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
-#endif()
+add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 
 include_directories("./include")
 
