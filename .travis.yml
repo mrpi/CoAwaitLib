@@ -20,7 +20,7 @@ install:
 script:
 - mkdir build && cd build
 #- sed 's/^compiler.libcxx=libstdc++$/compiler.libcxx=libstdc++11/' -i ~/.conan/profiles/default
-- conan install .. --build missing -s compiler.libcxx=libstdc++
+- conan install .. --build missing
 - cmake .. -DCMAKE_BUILD_TYPE=Release
 #- cmake --build .
 - make VERBOSE=1

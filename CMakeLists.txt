@@ -9,8 +9,6 @@ if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 	conan_basic_setup()
 endif()
 
-add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
-
 include_directories("./include")
 
 add_subdirectory("test")
