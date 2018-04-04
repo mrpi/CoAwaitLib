@@ -2,7 +2,7 @@
 
 #include <catch.hpp>
 
-auto now() { return boost::posix_time::microsec_clock::local_time(); }
+#include "helper.hpp"
 
 TEST_CASE("co::future")
 {

@@ -15,7 +15,11 @@
 
 #include <co/networking.hpp>
 
-enum { max_length = 1024 };
+#include "../test/helper.hpp"
+
+constexpr size_t MaxPackageLength = 1024;
+constexpr size_t MessagesPerCoroutine = 100000;
+constexpr size_t CoroutineCount = 10;
 
 int main(int argc, char* argv[])
 {
@@ -37,7 +41,7 @@ int main(int argc, char* argv[])
             
             boost::asio::connect(s, itr);
                
-            for (int i=0; i < 100000; i++)
+            for (int i=0; i < MessagesPerCoroutine; i++)
             {
                //std::cout << "Enter message: ";
                //char request[max_length];
@@ -45,7 +49,7 @@ int main(int argc, char* argv[])
                size_t request_length = msg.size();
                boost::asio::write(s, boost::asio::buffer(msg.data(), request_length));
 
-               char reply[max_length];
+               char reply[MaxPackageLength];
                size_t reply_length = boost::asio::read(s,
                                                       boost::asio::buffer(reply, request_length));
                if (std::string{reply, reply_length} != msg)
@@ -55,7 +59,9 @@ int main(int argc, char* argv[])
             std::cout << "Coroutine done" << std::endl;
         };
 
-        std::vector<co::Routine> coros(10);
+        std::vector<co::Routine> coros(CoroutineCount);
+        
+        auto startTime = co_tests::now();
         
         for (auto& coro : coros)
            coro = co::Routine{func};
@@ -65,6 +71,15 @@ int main(int argc, char* argv[])
         
         for (auto& coro : coros)
            coro.join();
+        
+        auto endTime = co_tests::now();
+        
+        auto totalRuntime = endTime - startTime;
+        auto msgCnt = MessagesPerCoroutine * CoroutineCount;
+        auto totalSec = totalRuntime.total_milliseconds() / 1000.0;
+        auto msgPerSec = msgCnt / totalSec;
+        
+        std::cout << "Runtime: " << totalSec << "s" << " (" << msgPerSec << " messages per second)" << std::endl;
     } catch (std::exception& e) {
         std::cerr << "Exception: " << e.what() << "\n";
     }
