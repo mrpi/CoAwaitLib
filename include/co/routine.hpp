@@ -252,7 +252,7 @@ namespace co
       {
          template <typename Func>
          Data(boost::asio::io_context& context, size_t stackSize, Func&& func, boost::container::pmr::polymorphic_allocator<std::uint8_t> alloc)
-          : mContext(context), mStackSize{stackSize}, mAllocator(alloc), mLocalStorage(mAllocator), mPull(StackAllocator{this}, [ this, f = std::forward<Func>(func) ](CoRo::push_type & sink) {
+          : mContext(context), mStackSize{stackSize}, mAllocator(alloc), mLocalStorage(mAllocator), mPull(StackAllocator{this}, [ this, f = std::forward<Func>(func) ](CoRo::push_type & sink) mutable {
                mPush = &sink;
                mOuter = current().exchange(this, std::memory_order_acquire);
 

@@ -1,6 +1,7 @@
 #include <co/mutex.hpp>
 
 #include <catch.hpp>
+
 #include "helper.hpp"
 
 SCENARIO("co::Mutex should fulfill the Mutex concept")
