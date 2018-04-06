@@ -413,7 +413,14 @@ namespace co
    };
       
    inline bool Routine::ResultSetter::operator()()
-   {    
+   {   
+      bool destruct = false;
+      {
+         bool expected = false;
+         if (!mParent->mIsDetached.compare_exchange_strong(expected, true, std::memory_order_relaxed))
+            destruct = true;
+      }
+      
       {
          Data* expected = nullptr;
          Data* disabled =  reinterpret_cast<Data*>(1);
@@ -424,16 +431,13 @@ namespace co
             mParent->mResult.set_value(std::move(boost::get<impl::PlaceholderType<T>>(mValue)));
       }
          
-      {   
-         bool expected = false;
-         if (!mParent->mIsDetached.compare_exchange_strong(expected, true, std::memory_order_relaxed))
-         {
-            auto data = mParent;
-            size_t size = sizeof(Data) + data->mStackSize;
-            auto alloc = data->mAllocator;
-            alloc.destroy(data);
-            alloc.deallocate(reinterpret_cast<std::uint8_t*>(data), size);
-         }
+      if (destruct)
+      {
+         auto data = mParent;
+         size_t size = sizeof(Data) + data->mStackSize;
+         auto alloc = data->mAllocator;
+         alloc.destroy(data);
+         alloc.deallocate(reinterpret_cast<std::uint8_t*>(data), size);
       }
          
       return true;

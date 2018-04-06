@@ -63,6 +63,44 @@ public:
     }
 };
 
+class CheckAllocAndDealloc : public boost::container::pmr::memory_resource
+{
+private:
+   boost::container::pmr::memory_resource* mUpstream;
+   std::atomic<std::intmax_t> mActiveAllocCnt{0};
+   std::atomic<std::intmax_t> mActiveAllocSize{0};
+   
+public:
+   CheckAllocAndDealloc(boost::container::pmr::memory_resource* upstream = boost::container::pmr::get_default_resource())
+    : mUpstream(upstream)
+   {}
+   
+   ~CheckAllocAndDealloc()
+   {
+       REQUIRE(mActiveAllocCnt == 0);
+       REQUIRE(mActiveAllocSize == 0);
+   }
+   
+    virtual void* do_allocate(std::size_t bytes, std::size_t alignment)
+    {
+        mActiveAllocCnt++;
+        mActiveAllocSize += bytes;
+        return mUpstream->allocate(bytes, alignment);
+    }
+    
+    virtual void do_deallocate(void* p, std::size_t bytes, std::size_t alignment)
+    {
+        mActiveAllocCnt--;
+        mActiveAllocSize -= bytes;
+        return mUpstream->deallocate(p, bytes, alignment);
+    }
+    
+    virtual bool do_is_equal(const boost::container::pmr::memory_resource& other) const noexcept
+    {
+        return this == &other;
+    }
+};
+
 TEST_CASE("co::Routine: await sleep on boost::asio::io_service")
 {
    using namespace std::literals;
@@ -175,6 +213,24 @@ TEST_CASE("co::Routine: coroutine in coroutine")
       }}.join();
       
       REQUIRE(processed);
+   }
+}
+
+TEST_CASE("co::Routine::detach()")
+{
+   CheckAllocAndDealloc memoryResource;
+   boost::asio::io_context ioc;
+   
+   
+   SECTION("detach before done")
+   {
+      co::Routine{ioc, [&](){ co::await(ioc); }, &memoryResource}.detach();
+      ioc.run();
+   }
+
+   SECTION("detach after done")
+   {
+      co::Routine{ioc, [](){ }, &memoryResource}.detach();
    }
 }
 
