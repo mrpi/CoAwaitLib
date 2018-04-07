@@ -81,7 +81,9 @@ This library and boost::fibre are expected to be interchange able with a thin ab
 - this library is expected to allow a smother integration existing application that could not be switched at once from blocking operations to fibres/coroutines
 - while boost::fibre treats every thread as a fibre, this library distinguishes between regular threads (blocking behavior) and coroutines (non blocking behavior)
 
-## API stability
+## Status
 
 This library is in an early development state.
 APIs are likely to change, but the features are likely to stay.
+
+- on Travis-CI: [![Travis Build Status](https://travis-ci.org/mrpi/CoAwaitLib.svg?branch=master)](https://travis-ci.org/mrpi/CoAwaitLib)
