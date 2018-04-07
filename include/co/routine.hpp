@@ -23,6 +23,25 @@ namespace co
       using CoRo = boost::coroutines2::coroutine<void>;
 
       struct Data;
+#ifdef _MSC_VER
+//#define CO_WORKAROUND_THREAD_LOCAL_OPTIMIZATION // TODO: Needs further investigation
+#endif
+      
+#ifdef CO_WORKAROUND_THREAD_LOCAL_OPTIMIZATION
+      using ActiveCoroType = std::atomic<Data*>;
+      
+      static Data* exchange(ActiveCoroType& currentVal, Data* newVal)
+      {
+         return currentVal.exchange(newVal, std::memory_order_relaxed);
+      }
+#else
+      using ActiveCoroType = Data*;
+      
+      static Data* exchange(ActiveCoroType& currentVal, Data* newVal)
+      {
+         return std::exchange(currentVal, newVal);
+      }
+#endif
       
    public:
       using allocator_type = boost::container::pmr::polymorphic_allocator<std::uint8_t>;
@@ -76,7 +95,7 @@ namespace co
             d.reset();
       }
       
-      static std::atomic<Data*>& current();
+      static ActiveCoroType& current();
       
       static boost::asio::io_context& currentIoContext()
       {
@@ -254,14 +273,14 @@ namespace co
          Data(boost::asio::io_context& context, size_t stackSize, Func&& func, boost::container::pmr::polymorphic_allocator<std::uint8_t> alloc)
           : mContext(context), mStackSize{stackSize}, mAllocator(alloc), mLocalStorage(mAllocator), mPull(StackAllocator{this}, [ this, f = std::forward<Func>(func) ](CoRo::push_type & sink) mutable {
                mPush = &sink;
-               mOuter = current().exchange(this, std::memory_order_acquire);
+               mOuter = exchange(current(), this);
 
                impl::ValueHandling<T>::setByResult(mSetResult.mValue, f);
                   
                auto replaced = mPostLeave.exchange(&mSetResult, std::memory_order_release);
                assert(replaced == nullptr);
 
-               auto exitedCoro = current().exchange(mOuter, std::memory_order_release);
+               auto exitedCoro = exchange(current(), mOuter);
                assert(this == exitedCoro);
          })
          {
@@ -279,9 +298,9 @@ namespace co
             }
          }
 
-         static std::atomic<Data*>& current()
+         static ActiveCoroType& current()
          {
-            static thread_local std::atomic<Data*> current{};
+            static thread_local ActiveCoroType current{};
             return current;
          }
 
@@ -299,7 +318,7 @@ namespace co
             auto replaced = mPostLeave.exchange(postFunc, std::memory_order_seq_cst);
             assert(replaced == nullptr);
             
-            auto exitedCoro = current().exchange(mOuter, std::memory_order_release);
+            auto exitedCoro = exchange(current(), mOuter);
             assert(this == exitedCoro);
 
             (*mPush)();
@@ -309,7 +328,8 @@ namespace co
          {
             do
             {
-               mOuter = current().exchange(this, std::memory_order_acquire);
+               mOuter = exchange(current(), this);
+               assert(this != mOuter);
 
                mPull();
                
@@ -443,7 +463,7 @@ namespace co
       return true;
    }      
       
-   inline std::atomic<Routine::Data*>& Routine::current()
+   inline Routine::ActiveCoroType& Routine::current()
    {
       return Data::current();
    }

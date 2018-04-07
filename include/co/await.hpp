@@ -193,7 +193,7 @@ namespace co
       if (awaiter.await_ready())
          return awaiter.await_resume();
 
-      auto current = Routine::current().load();
+      Routine::Data* current = Routine::current();
       if (!current)
       {
          SupportsSynchronAwait<T> synchron;
