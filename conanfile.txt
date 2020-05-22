@@ -1,6 +1,5 @@
 [requires]
-boost_coroutine2/1.66.0@bincrafters/stable 
-boost_asio/1.66.0@bincrafters/stable
+boost/1.70.0@conan/stable
 catch2/2.1.2@bincrafters/stable
 
 [generators]

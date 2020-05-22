@@ -15,12 +15,18 @@
 namespace co
 {
 
+   template <typename T>
+   auto await(T&& awaitable);
+
    class Routine
    {
    private:
       using T = void;
       
       using CoRo = boost::coroutines2::coroutine<void>;
+
+	  template <typename T>
+	  friend auto await(T&& awaitable);
 
       struct Data;
 #ifdef _MSC_VER
@@ -426,10 +432,11 @@ namespace co
          }
       };
       
-      template <typename T>
-      class SpecificPtr;
-      
       std::unique_ptr<Data, Destructor> d;
+
+   public:
+	  template <typename T>
+	  class SpecificPtr;
    };
       
    inline bool Routine::ResultSetter::operator()()

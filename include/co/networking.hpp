@@ -5,12 +5,6 @@
 namespace co
 {
 
-inline void throwError(const boost::system::error_code& error, const char* msg)
-{
-    if (error)
-        throw boost::system::system_error(error, msg);
-}
-
 namespace impl
 {
 
@@ -91,9 +85,7 @@ public:
 
     using endpoint_type = typename Parent::endpoint_type;
     using message_flags = typename Parent::message_flags;
-#if 0 // ony available since boost 1.66
     using wait_type = typename Parent::wait_type;
-#endif
 
     void connect(const endpoint_type& peer_endpoint)
     {
@@ -161,12 +153,44 @@ public:
         parent().async_write_some(buffers, [&](const boost::system::error_code & error, std::size_t bytes_transferred) {
             ec = error;
             res = bytes_transferred;
-            p.set_value(impl::StatelessT {});
+            p.set_value(impl::StatelessT{});
         });
         co::await(p);
-        throwError(ec, "receive");
+        throwError(ec, "write_some");
 
         return res;
+    }
+
+    template<typename ConstBufferSequence>
+    std::size_t send(const ConstBufferSequence& buffers)
+    {
+       return send(buffers, 0);
+    }
+
+    template<typename ConstBufferSequence>
+    std::size_t send(const ConstBufferSequence& buffers, message_flags flags)
+    {
+       boost::system::error_code error;
+       auto res = send(buffers, 0, error);
+       throwError(error, "send");
+       return res;
+    }
+
+    template<typename ConstBufferSequence>
+    std::size_t send(const ConstBufferSequence& buffers, message_flags flags, boost::system::error_code& ec)
+    {
+       std::size_t res{};
+
+       impl::LightFutureData<impl::StatelessT> p;
+       parent().async_send(buffers, flags, [&](const boost::system::error_code& error, std::size_t bytes_transferred) {
+          ec = error;
+          res = bytes_transferred;
+          p.set_value(impl::StatelessT{});
+       });
+       co::await(p);
+       throwError(ec, "send");
+
+       return res;
     }
 
     template<typename MutableBufferSequence>
@@ -214,7 +238,6 @@ public:
         return res;
     }
 
-#if 0 // ony available since boost 1.66
     void wait(wait_type w)
     {
         boost::system::error_code ec;
@@ -231,7 +254,6 @@ public:
         });
         co::await(p);
     }
-#endif
 };
 
 template<typename Parent>
