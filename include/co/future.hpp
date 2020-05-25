@@ -221,6 +221,11 @@ public:
       return get_unchecked();
    }
 
+   inline auto await_synchron()
+   {
+      return get_blocking();
+   }
+
    bool suspend(impl::ContinuationTask& func)
    {
       auto expected = impl::EmptyHandle;
