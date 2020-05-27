@@ -1,6 +1,6 @@
 #include <co/await.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 #include <boost/container/pmr/synchronized_pool_resource.hpp>
 #include <boost/container/pmr/vector.hpp>

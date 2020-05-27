@@ -1,6 +1,6 @@
 #include <co/routine_specific_ptr.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 struct TestObject
 {

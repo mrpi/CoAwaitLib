@@ -391,6 +391,7 @@ namespace co
                cleanupFunction = other.cleanupFunction;
 
                other.cleanupFunction = std::function<void (void*)>{};
+               return *this;
             }
             
             void* data{};
@@ -425,11 +426,12 @@ namespace co
              alloc.deallocate(reinterpret_cast<std::uint8_t*>(data), size);
          }
       };
-      
+            
+      std::unique_ptr<Data, Destructor> d;
+
+   public:
       template <typename T>
       class SpecificPtr;
-      
-      std::unique_ptr<Data, Destructor> d;
    };
       
    inline bool Routine::ResultSetter::operator()()

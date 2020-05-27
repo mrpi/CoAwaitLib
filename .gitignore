@@ -1,0 +1,6 @@
+build*/*
+conan.lock
+conanbuildinfo.cmake
+conanbuildinfo.txt
+conaninfo.txt
+.kdev4

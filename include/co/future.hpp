@@ -434,20 +434,6 @@ class promise<void>
    }
 };
 
-template <typename FUNC>
-auto async(boost::asio::io_service& ioService, FUNC&& func)
-{
-   promise<decltype(func())> p;
-   auto f = p.get_future();
-
-   ioService.post([ p = std::move(p), func = std::forward<FUNC>(func) ]() mutable
-                  {
-                     p.set_value(func());
-                  });
-
-   return f;
-}
-
 template <typename T>
 auto make_ready_future(T&& val)
 {

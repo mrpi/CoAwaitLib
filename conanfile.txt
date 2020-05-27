@@ -1,7 +1,6 @@
 [requires]
-boost_coroutine2/1.66.0@bincrafters/stable 
-boost_asio/1.66.0@bincrafters/stable
-catch2/2.1.2@bincrafters/stable
+boost/1.73.0
+catch2/2.12.1
 
 [generators]
 cmake

@@ -1,0 +1,6 @@
+AlwaysBreakTemplateDeclarations: true
+BreakBeforeBraces: Allman
+IndentWidth: 3
+ConstructorInitializerIndentWidth: 1
+PointerBindsToType: true
+ColumnLimit: 100

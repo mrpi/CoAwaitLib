@@ -1,18 +1,20 @@
 #include <co/mutex.hpp>
+#include <co/timed_mutex.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 #include "helper.hpp"
 
-SCENARIO("co::Mutex should fulfill the Mutex concept")
+template<typename MutexT>
+void testAgainstMutexConcept()
 {
-    REQUIRE_FALSE(std::is_copy_constructible<co::Mutex>::value);
-    REQUIRE_FALSE(std::is_copy_assignable<co::Mutex>::value);
-    REQUIRE_FALSE(std::is_move_constructible<co::Mutex>::value);
-    REQUIRE_FALSE(std::is_move_assignable<co::Mutex>::value);
+    REQUIRE_FALSE(std::is_copy_constructible<MutexT>::value);
+    REQUIRE_FALSE(std::is_copy_assignable<MutexT>::value);
+    REQUIRE_FALSE(std::is_move_constructible<MutexT>::value);
+    REQUIRE_FALSE(std::is_move_assignable<MutexT>::value);
 
     GIVEN("an unlocked mutex") {
-        co::Mutex mutex;
+        MutexT mutex;
 
         WHEN("the mutex is locked") {
             mutex.lock();
@@ -81,7 +83,7 @@ SCENARIO("co::Mutex should fulfill the Mutex concept")
     }
     
    GIVEN("a already locked mutex") {
-        co::Mutex mutex;
+        MutexT mutex;
         mutex.lock();
         
         WHEN("the mutex is locked in a coroutine") {
@@ -129,7 +131,17 @@ SCENARIO("co::Mutex should fulfill the Mutex concept")
                coro.join();
             }
         }       
-   }
+   }   
+}
+
+SCENARIO("co::Mutex should fulfill the Mutex concept")
+{
+   testAgainstMutexConcept<co::Mutex>();
+}
+
+SCENARIO("co::experimental::TimedMutex should fulfill the Mutex concept")
+{
+   testAgainstMutexConcept<co::experimental::TimedMutex>();
 }
 
 TEST_CASE("co::Mutex stress tests", "[.StressTest]")
@@ -147,7 +159,7 @@ TEST_CASE("co::Mutex stress tests", "[.StressTest]")
    auto lastExecThread = std::this_thread::get_id();
    
    auto coroFunc = [&](){
-          // Force exection in thread pool
+          // Force execution in thread pool
           co::await(co::defaultIoContext());
       
           for (int i = 0; i < LoopCnt; i++)

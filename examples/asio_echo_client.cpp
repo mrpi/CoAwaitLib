@@ -19,7 +19,7 @@
 
 constexpr size_t MaxPackageLength = 1024;
 constexpr size_t MessagesPerCoroutine = 100000;
-constexpr size_t CoroutineCount = 10;
+constexpr size_t CoroutineCount = 220;
 
 int main(int argc, char* argv[])
 {
@@ -40,6 +40,7 @@ int main(int argc, char* argv[])
             auto itr = resolver.resolve({argv[1], argv[2]});
             
             boost::asio::connect(s, itr);
+            s.set_option(boost::asio::ip::tcp::no_delay(false));
                
             for (int i=0; i < MessagesPerCoroutine; i++)
             {
@@ -65,9 +66,8 @@ int main(int argc, char* argv[])
         
         for (auto& coro : coros)
            coro = co::Routine{func};
-
-        co::IoContextThreads threads{2, io_service};
-        //io_service.run();
+   
+        auto threads = co::IoContextThreads::usePercentageOfHardwareThreads(100, io_service);
         
         for (auto& coro : coros)
            coro.join();
