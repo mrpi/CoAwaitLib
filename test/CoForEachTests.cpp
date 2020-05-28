@@ -1,3 +1,4 @@
+#include <set>
 #include <co/foreach.hpp>
 
 #include <catch2/catch.hpp>

@@ -221,10 +221,16 @@ public:
       return get_unchecked();
    }
 
+   inline auto await_synchron()
+   {
+      return get_blocking();
+   }
+
    bool suspend(impl::ContinuationTask& func)
    {
       auto expected = impl::EmptyHandle;
-      bool res = continuationPtr.compare_exchange_strong(expected, &func, std::memory_order_acq_rel, std::memory_order_acq_rel);
+      // fail-order changed to memory_order_seq_cst to make MSVC happy
+      bool res = continuationPtr.compare_exchange_strong(expected, &func, std::memory_order_acq_rel, std::memory_order_seq_cst);
       
       // Suspended for the second time?
       assert(res || expected == reinterpret_cast<impl::ContinuationTask*>(impl::InvalidHandle));

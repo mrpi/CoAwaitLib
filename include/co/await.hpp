@@ -93,69 +93,73 @@ namespace co
          return true;
       }
    };
-   
-   template <class Rep, class Period>
-   struct AsioSleep
-   {
-      boost::asio::io_context& ioContext;
-      std::chrono::duration<Rep, Period> sleepFor;
-   };
-   
-   template <class Rep, class Period>
-   auto asioSleep(boost::asio::io_context& context, std::chrono::duration<Rep, Period> value)
-   {
-       return AsioSleep<Rep, Period>{context, std::move(value)};
-   }
-   
+
    namespace impl
    {
-   template <class Rep, class Period>
-   boost::posix_time::time_duration toBoostPosixTime(const std::chrono::duration<Rep, Period>& dur)
-   {
-      return boost::posix_time::microseconds{std::chrono::duration_cast<std::chrono::microseconds>(dur).count()};
-   }
+      template <class Rep, class Period>
+      boost::posix_time::time_duration toBoostPosixTime(const std::chrono::duration<Rep, Period>& dur)
+      {
+         return boost::posix_time::microseconds{ std::chrono::duration_cast<std::chrono::microseconds>(dur).count() };
+      }
    }
 
    template <class Rep, class Period>
-   class Awaiter<AsioSleep<Rep, Period>>
+   boost::asio::deadline_timer asioSleep(boost::asio::io_context& context, std::chrono::duration<Rep, Period> value)
+   {
+      return boost::asio::deadline_timer{context, impl::toBoostPosixTime(value)};
+   }
+   
+
+   inline void throwError(const boost::system::error_code& error, const char* msg)
+   {
+      if (error)
+         throw boost::system::system_error(error, msg);
+   }
+
+   template<>
+   class Awaiter<boost::asio::deadline_timer>
    {
    private:
-      std::chrono::duration<Rep, Period> mValue;
-      boost::asio::deadline_timer mTimer;
+      boost::asio::deadline_timer& mTimer;
+      boost::system::error_code mTimeoutError;
 
    public:
-      Awaiter(AsioSleep<Rep, Period> value) : mValue{std::move(value.sleepFor)}, mTimer{value.ioContext, impl::toBoostPosixTime(mValue)}
+      Awaiter(boost::asio::deadline_timer& timer) : mTimer{ timer }
       {
       }
 
       bool await_ready()
       {
-         return mValue < std::chrono::duration<Rep, Period>{};
+         return mTimer.expires_from_now() < boost::posix_time::time_duration{};
       }
       
       void await_synchron()
       {
-          std::this_thread::sleep_for(mValue);
+         std::this_thread::sleep_for(std::chrono::microseconds{ mTimer.expires_from_now().total_microseconds() });
       }
 
-      constexpr void await_resume()
+      void await_resume()
       {
+         throwError(mTimeoutError, "async_wait");
       }
 
       template <typename Handle>
       bool await_suspend(Handle&& cb)
       {
-         mTimer.async_wait([&cb](boost::system::error_code /*ec*/) { cb(); });
+         mTimer.async_wait([&cb, this](boost::system::error_code ec) { 
+            mTimeoutError = ec;
+            cb();
+         });
          return true;
       }
    };
 
    template <class Rep, class Period>
-   class Awaiter<std::chrono::duration<Rep, Period>> : public Awaiter<AsioSleep<Rep, Period>>
+   class Awaiter<std::chrono::duration<Rep, Period>> : public Awaiter<boost::asio::deadline_timer>
    {
    public:
       Awaiter(const std::chrono::duration<Rep, Period>& val)
-       : Awaiter<AsioSleep<Rep, Period>>(asioSleep(co::Routine::currentIoContext(), val))
+       : Awaiter<boost::asio::deadline_timer>(asioSleep(co::Routine::currentIoContext(), val))
       {}       
    };
    
