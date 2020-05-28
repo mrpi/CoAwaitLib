@@ -157,10 +157,13 @@ namespace co
    template <class Rep, class Period>
    class Awaiter<std::chrono::duration<Rep, Period>> : public Awaiter<boost::asio::deadline_timer>
    {
+   private:
+      boost::asio::deadline_timer mTimerInstance;
+
    public:
       Awaiter(const std::chrono::duration<Rep, Period>& val)
-       : Awaiter<boost::asio::deadline_timer>(asioSleep(co::Routine::currentIoContext(), val))
-      {}       
+       : Awaiter<boost::asio::deadline_timer>(mTimerInstance /*should be safe, no access in constructor*/), mTimerInstance(asioSleep(co::Routine::currentIoContext(), val))
+      {}
    };
    
    template<typename T>
