@@ -4,3 +4,7 @@ conanbuildinfo.cmake
 conanbuildinfo.txt
 conaninfo.txt
 .kdev4
+CMakeSettings.json
+graph_info.json
+.vs/
+out/
