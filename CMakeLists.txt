@@ -9,6 +9,12 @@ if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 	conan_basic_setup()
 endif()
 
+if (MSVC)
+   # not required but recommended
+   #set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /GT")
+   #set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GT")
+endif()
+
 include_directories("./include")
 
 add_subdirectory("test")
