@@ -6,16 +6,13 @@ auto now() { return boost::posix_time::microsec_clock::local_time(); }
 
 int main()
 {
-   boost::asio::io_service ioService;
+   boost::asio::io_context ioService;
    std::vector<std::thread> myThreads(2);
 
-   boost::optional<boost::asio::io_service::work> work{ioService};
+   boost::optional<boost::asio::io_context::work> work{ioService};
    for (auto&& t : myThreads)
    {
-      t = std::thread{[&]
-                      {
-                         ioService.run();
-                      }};
+      t = std::thread{[&] { ioService.run(); }};
    }
 
    auto lastFuture = co::make_ready_future<int>(42);
@@ -23,10 +20,7 @@ int main()
    auto begin = now();
    for (size_t i = 0; i < innerLoopCnt; i++)
    {
-      auto f = co::async(ioService, []
-                         {
-                            return 42;
-                         });
+      auto f = co::async(ioService, [] { return 42; });
 
       if (lastFuture.get() != 42)
          throw std::runtime_error("Invalid value");

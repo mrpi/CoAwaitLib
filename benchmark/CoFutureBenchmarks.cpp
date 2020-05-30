@@ -18,173 +18,141 @@ auto std_make_ready_future(T&& t)
    return f;
 }
 
-NONIUS_BENCHMARK("StdFutureGetAndPostLoop", [](nonius::chronometer meter)
-                 {
-                    boost::asio::io_service ioService;
-                    std::vector<std::thread> myThreads(2);
+NONIUS_BENCHMARK("StdFutureGetAndPostLoop", [](nonius::chronometer meter) {
+   boost::asio::io_context ioService;
+   std::vector<std::thread> myThreads(2);
 
-                    boost::optional<boost::asio::io_service::work> work{ioService};
-                    for (auto&& t : myThreads)
-                    {
-                       t = std::thread{[&]
-                                       {
-                                          ioService.run();
-                                       }};
-                    }
+   boost::optional<boost::asio::io_context::work> work{ioService};
+   for (auto&& t : myThreads)
+   {
+      t = std::thread{[&] { ioService.run(); }};
+   }
 
-                    auto lastFuture = std_make_ready_future(42);
+   auto lastFuture = std_make_ready_future(42);
 
-                    meter.measure([&]
-                                  {
-                                     for (size_t i=0; i < innerLoopCnt; i++)
-                                     {
-                                     auto p = std::make_shared<std::promise<int>>();
-                                     auto f = p->get_future();
-                                     ioService.post([p = std::move(p)]
-                                                    {
-                                                       p->set_value(42);
-                                                    });
+   meter.measure([&] {
+      for (size_t i = 0; i < innerLoopCnt; i++)
+      {
+         auto p = std::make_shared<std::promise<int>>();
+         auto f = p->get_future();
+         ioService.post([p = std::move(p)] { p->set_value(42); });
 
-                                     if (lastFuture.get() != 42)
-                                        throw std::runtime_error("Invalid value");
+         if (lastFuture.get() != 42)
+            throw std::runtime_error("Invalid value");
 
-                                     lastFuture = std::move(f);
-                                     }
-                                  });
+         lastFuture = std::move(f);
+      }
+   });
 
-                    if (lastFuture.get() != 42)
-                       throw std::runtime_error("Invalid value");
+   if (lastFuture.get() != 42)
+      throw std::runtime_error("Invalid value");
 
-                    work = boost::none;
+   work = boost::none;
 
-                    for (auto&& t : myThreads)
-                       t.join();
-                 });
+   for (auto&& t : myThreads)
+      t.join();
+});
 
-NONIUS_BENCHMARK("BoostFutureGetAndPostLoop", [](nonius::chronometer meter)
-                 {
-                    boost::asio::io_service ioService;
-                    std::vector<std::thread> myThreads(2);
+NONIUS_BENCHMARK("BoostFutureGetAndPostLoop", [](nonius::chronometer meter) {
+   boost::asio::io_context ioService;
+   std::vector<std::thread> myThreads(2);
 
-                    boost::optional<boost::asio::io_service::work> work{ioService};
-                    for (auto&& t : myThreads)
-                    {
-                       t = std::thread{[&]
-                                       {
-                                          ioService.run();
-                                       }};
-                    }
+   boost::optional<boost::asio::io_context::work> work{ioService};
+   for (auto&& t : myThreads)
+   {
+      t = std::thread{[&] { ioService.run(); }};
+   }
 
-                    auto lastFuture = boost::make_ready_future(42);
+   auto lastFuture = boost::make_ready_future(42);
 
-                    meter.measure([&]
-                                  {
-                                     for (size_t i=0; i < innerLoopCnt; i++)
-                                     {
-                                     auto p = std::make_shared<boost::promise<int>>();
-                                     auto f = p->get_future();
-                                     ioService.post([p = std::move(p)]
-                                                    {
-                                                       p->set_value(42);
-                                                    });
+   meter.measure([&] {
+      for (size_t i = 0; i < innerLoopCnt; i++)
+      {
+         auto p = std::make_shared<boost::promise<int>>();
+         auto f = p->get_future();
+         ioService.post([p = std::move(p)] { p->set_value(42); });
 
-                                     if (lastFuture.get() != 42)
-                                        throw std::runtime_error("Invalid value");
+         if (lastFuture.get() != 42)
+            throw std::runtime_error("Invalid value");
 
-                                     lastFuture = std::move(f);
-                                     }
-                                  });
+         lastFuture = std::move(f);
+      }
+   });
 
-                    if (lastFuture.get() != 42)
-                       throw std::runtime_error("Invalid value");
+   if (lastFuture.get() != 42)
+      throw std::runtime_error("Invalid value");
 
-                    work = boost::none;
+   work = boost::none;
 
-                    for (auto&& t : myThreads)
-                       t.join();
-                 });
+   for (auto&& t : myThreads)
+      t.join();
+});
 
-NONIUS_BENCHMARK("CoFutureGetAndPostLoop", [](nonius::chronometer meter)
-                 {
-                    boost::asio::io_service ioService;
-                    std::vector<std::thread> myThreads(2);
+NONIUS_BENCHMARK("CoFutureGetAndPostLoop", [](nonius::chronometer meter) {
+   boost::asio::io_context ioService;
+   std::vector<std::thread> myThreads(2);
 
-                    boost::optional<boost::asio::io_service::work> work{ioService};
-                    for (auto&& t : myThreads)
-                    {
-                       t = std::thread{[&]
-                                       {
-                                          ioService.run();
-                                       }};
-                    }
+   boost::optional<boost::asio::io_context::work> work{ioService};
+   for (auto&& t : myThreads)
+   {
+      t = std::thread{[&] { ioService.run(); }};
+   }
 
-                    auto lastFuture = co::make_ready_future(42);
+   auto lastFuture = co::make_ready_future(42);
 
-                    meter.measure([&]
-                                  {
-                                     for (size_t i=0; i < innerLoopCnt; i++)
-                                     {
-                                     auto f = co::async(ioService, []
-                                                        {
-                                                           return 42;
-                                                        });
+   meter.measure([&] {
+      for (size_t i = 0; i < innerLoopCnt; i++)
+      {
+         auto f = co::async(ioService, [] { return 42; });
 
-                                     if (lastFuture.get() != 42)
-                                        throw std::runtime_error("Invalid value");
+         if (lastFuture.get() != 42)
+            throw std::runtime_error("Invalid value");
 
-                                     lastFuture = std::move(f);
-                                     }
-                                  });
+         lastFuture = std::move(f);
+      }
+   });
 
-                    if (lastFuture.get() != 42)
-                       throw std::runtime_error("Invalid value");
+   if (lastFuture.get() != 42)
+      throw std::runtime_error("Invalid value");
 
-                    work = boost::none;
+   work = boost::none;
 
-                    for (auto&& t : myThreads)
-                       t.join();
-                 });
+   for (auto&& t : myThreads)
+      t.join();
+});
 
-NONIUS_BENCHMARK("CoFutureGet2AndPostLoop", [](nonius::chronometer meter)
-                 {
-                    boost::asio::io_service ioService;
-                    std::vector<std::thread> myThreads(2);
+NONIUS_BENCHMARK("CoFutureGet2AndPostLoop", [](nonius::chronometer meter) {
+   boost::asio::io_context ioService;
+   std::vector<std::thread> myThreads(2);
 
-                    boost::optional<boost::asio::io_service::work> work{ioService};
-                    for (auto&& t : myThreads)
-                    {
-                       t = std::thread{[&]
-                                       {
-                                          ioService.run();
-                                       }};
-                    }
+   boost::optional<boost::asio::io_context::work> work{ioService};
+   for (auto&& t : myThreads)
+   {
+      t = std::thread{[&] { ioService.run(); }};
+   }
 
-                    auto lastFuture = co::make_ready_future(42);
+   auto lastFuture = co::make_ready_future(42);
 
-                    meter.measure([&]
-                                  {
-                                     for (size_t i=0; i < innerLoopCnt; i++)
-                                     {
-                                     auto f = co::async(ioService, []
-                                                        {
-                                                           return 42;
-                                                        });
+   meter.measure([&] {
+      for (size_t i = 0; i < innerLoopCnt; i++)
+      {
+         auto f = co::async(ioService, [] { return 42; });
 
-                                     if (lastFuture.get2() != 42)
-                                        throw std::runtime_error("Invalid value");
+         if (lastFuture.get2() != 42)
+            throw std::runtime_error("Invalid value");
 
-                                     lastFuture = std::move(f);
-                                     }
-                                  });
+         lastFuture = std::move(f);
+      }
+   });
 
-                    if (lastFuture.get() != 42)
-                       throw std::runtime_error("Invalid value");
+   if (lastFuture.get() != 42)
+      throw std::runtime_error("Invalid value");
 
-                    work = boost::none;
+   work = boost::none;
 
-                    for (auto&& t : myThreads)
-                       t.join();
-                 });
+   for (auto&& t : myThreads)
+      t.join();
+});
 
 #if 0
 NONIUS_BENCHMARK("StdFutureGetReadyFuture", [](nonius::chronometer meter)
