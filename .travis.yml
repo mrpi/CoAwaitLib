@@ -13,7 +13,8 @@
 # Adapted from various sources, including:
 # - Louis Dionne's Hana: https://github.com/ldionne/hana
 # - Paul Fultz II's FIT: https://github.com/pfultz2/Fit
-language: cpp
+language: python
+python: "3.7"
 dist: xenial
 script: cmake
 
