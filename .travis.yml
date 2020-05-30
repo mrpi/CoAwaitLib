@@ -1,9 +1,72 @@
-os: linux
-language: python
-python: "3.7"
+# Copyright Louis Dionne 2013-2016
+# Copyright Gonzalo BG 2014-2017
+# Copyright Julian Becker 2015
+# Copyright Manu Sánchez 2015
+# Copyright Casey Carter 2015-2017
+# Copyright Eric Niebler 2015-2016
+# Copyright Paul Fultz II 2015-2016
+# Copyright Jakub Szuppe 2016.
+
+# Distributed under the Boost Software License, Version 1.0.
+# (See accompanying file LICENSE.txt or copy at http://boost.org/LICENSE_1_0.txt)
+
+# Adapted from various sources, including:
+# - Louis Dionne's Hana: https://github.com/ldionne/hana
+# - Paul Fultz II's FIT: https://github.com/pfultz2/Fit
+language: cpp
 dist: xenial
-compiler: gcc
-compiler.version: 8
+script: cmake
+
+git:
+  depth: 1
+
+env:
+  global:
+    - DEPS_DIR=${TRAVIS_BUILD_DIR}/deps
+    - CMAKE_VERSION="3.12.0"
+
+cache:
+  directories:
+    - ${DEPS_DIR}/cmake-${CMAKE_VERSION}
+
+matrix:
+    - env: GCC_VERSION=8 BUILD_TYPE=Debug CPP=17
+      os: linux
+      addons: &gcc8
+        apt:
+          packages:
+            - g++-8
+          sources:
+            - ubuntu-toolchain-r-test
+
+# Install dependencies
+before_install:
+  - set -e
+  - |
+    if [ "$TRAVIS_OS_NAME" == "osx" ]; then
+      brew update
+      brew install gnu-sed
+      brew install gnu-which
+      brew upgrade cmake
+      export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
+    fi
+  - |
+    if [ "${TRAVIS_OS_NAME}" == "linux" ]; then
+      if [ -f ${DEPS_DIR}/cmake-${CMAKE_VERSION}/cached ]; then
+        echo "Using cached cmake version ${CMAKE_VERSION}."
+      else
+        CMAKE_URL="https://cmake.org/files/v3.12/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz"
+        mkdir -p ${DEPS_DIR}/cmake-${CMAKE_VERSION}
+        travis_retry wget --no-check-certificate --quiet -O - "${CMAKE_URL}" | tar --strip-components=1 -xz -C ${DEPS_DIR}/cmake-${CMAKE_VERSION}
+        touch ${DEPS_DIR}/cmake-${CMAKE_VERSION}/cached
+      fi
+      export PATH="${DEPS_DIR}/cmake-${CMAKE_VERSION}/bin:${PATH}"
+    fi
+  - if [ -n "$GCC_VERSION" ]; then export CXX="g++-${GCC_VERSION}" CC="gcc-${GCC_VERSION}"; fi
+  - if [ -n "$CLANG_VERSION" ]; then export CXX="clang++-${CLANG_VERSION}" CC="clang-${CLANG_VERSION}"; fi
+  - which $CXX && $CXX --version
+  - which $CC
+  - if [ -n "$CLANG_VERSION" ]; then PATH="${PATH}" CXX="$CXX" CC="$CC" ./install_libcxx.sh; fi
 
 install:
 # Install conan
