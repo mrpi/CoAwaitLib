@@ -12,10 +12,11 @@ install:
 - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 60 --slave /usr/bin/g++ g++ /usr/bin/g++-7
 
 # Install conan
+- sudo pip3 install setuptools
 - sudo pip3 install conan
 # Automatic detection of your arch, compiler, etc.
 - conan user
-- conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-conan
+# - conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-conan
 
 script:
 - mkdir build && cd build
