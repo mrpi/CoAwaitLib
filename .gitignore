@@ -7,4 +7,5 @@ conaninfo.txt
 CMakeSettings.json
 graph_info.json
 .vs/
+.vscode/
 out/
