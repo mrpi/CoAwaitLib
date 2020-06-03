@@ -15,7 +15,7 @@ struct Server
 
  public:
    Server(boost::asio::io_context& ioContext, Session session)
-    : mAcceptor(ioContext, boost::asio::ip::tcp::endpoint{boost::asio::ip::tcp::v6(), 0}),
+    : mAcceptor(ioContext, boost::asio::ip::tcp::endpoint{boost::asio::ip::tcp::v4(), 0}),
       mSession(std::move(session))
    {
    }
@@ -115,7 +115,7 @@ TEST_CASE("co::ip::tcp")
    co::Routine cliJob{[&srv, &ioContext, port = srv.port()]() {
       try
       {
-         Client cli{ioContext, boost::asio::ip::tcp::endpoint{boost::asio::ip::tcp::v6(), port}};
+         Client cli{ioContext, boost::asio::ip::tcp::endpoint{boost::asio::ip::tcp::v4(), port}};
 
          cli.sendMsg("Hello");
          REQUIRE(cli.recvMsg() == "Client");
