@@ -59,6 +59,33 @@ void run(Sender&& sender, Receiver&& receiver)
 
 } // namespace
 
+TEST_CASE("co::makeUnbufferedChannel")
+{
+   auto&& [sender, receiver] = co::makeUnbufferedChannel<int>();
+
+   static constexpr int valueCnt = 100;
+
+   auto senderFun = [&sender]() {
+      auto send = std::move(sender);
+      for (int i = 0; i < valueCnt; i++)
+      {
+         if (!send(i))
+            return;
+      }
+   };
+
+   auto receiverFun = [&receiver]() {
+      int expected = 0;
+
+      auto receive = std::move(receiver);
+      for (auto&& val : receive)
+         REQUIRE(expected++ == val);
+      REQUIRE(expected == valueCnt);
+   };
+
+   run(senderFun, receiverFun);
+}
+
 TEST_CASE("co::UnbufferedChannel")
 {
    co::UnbufferedChannel<int> channel;
@@ -66,7 +93,7 @@ TEST_CASE("co::UnbufferedChannel")
    static constexpr int valueCnt = 100;
 
    auto sender = [&channel]() {
-      co::Sender send{channel};
+      co::Sender send{&channel};
       for (int i = 0; i < valueCnt; i++)
       {
          if (!send(i))
@@ -79,7 +106,7 @@ TEST_CASE("co::UnbufferedChannel")
       auto receiver = [&channel]() {
          int expected = 0;
 
-         for (auto&& val : co::Receiver{channel})
+         for (auto&& val : co::Receiver{&channel})
             REQUIRE(expected++ == val);
          REQUIRE(expected == valueCnt);
       };

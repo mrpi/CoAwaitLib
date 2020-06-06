@@ -5,6 +5,14 @@
 
 namespace co
 {
+
+/*
+ * Single producer + single consumer channel.
+ *
+ * The unbuffered channel acts as an rendezvous point:
+ *  - the sender is blocked/suspended on push() till there is a receiver
+ *  - the receiver is blocked on pop till there is a sender
+ */
 template <typename T>
 class UnbufferedChannel
 {
@@ -52,19 +60,22 @@ class UnbufferedChannel
    }
 };
 
-template <typename Channel>
+template <typename ChannelPtr>
 class Sender
 {
+ public:
+   using value_type = typename std::decay_t<decltype(*std::declval<ChannelPtr>())>::value_type;
+
  private:
-   Channel* mChannel{nullptr};
+   ChannelPtr mChannel{nullptr};
 
  public:
-   explicit Sender(Channel& channel) : mChannel(&channel) {}
+   explicit Sender(ChannelPtr channel) : mChannel(std::move(channel)) {}
 
    Sender(const Sender&) = delete;
    Sender operator=(const Sender&) = delete;
 
-   Sender(Sender&& other) : mChannel(other.mChannel) { other.mChannel = nullptr; }
+   Sender(Sender&& other) : mChannel(std::move(other.mChannel)) { other.mChannel = nullptr; }
    Sender operator=(Sender&& other)
    {
       close();
@@ -73,10 +84,7 @@ class Sender
 
    ~Sender() { close(); }
 
-   [[nodiscard]] bool operator()(typename Channel::value_type val)
-   {
-      return mChannel->push(std::move(val));
-   }
+   [[nodiscard]] bool operator()(value_type val) { return mChannel->push(std::move(val)); }
 
    void close()
    {
@@ -88,20 +96,22 @@ class Sender
    }
 };
 
-template <typename Channel>
+template <typename ChannelPtr>
 class Receiver
 {
+ public:
+   using value_type = typename std::decay_t<decltype(*std::declval<ChannelPtr>())>::value_type;
+
  private:
-   Channel* mChannel{nullptr};
-   boost::optional<typename Channel::value_type> mCurrent{mChannel->pop()};
+   ChannelPtr mChannel{nullptr};
 
  public:
-   explicit Receiver(Channel& channel) : mChannel(&channel) {}
+   explicit Receiver(ChannelPtr channel) : mChannel(std::move(channel)) {}
 
    Receiver(const Receiver&) = delete;
    Receiver operator=(const Receiver&) = delete;
 
-   Receiver(Receiver&& other) : mChannel(other.mChannel) { other.mChannel = nullptr; }
+   Receiver(Receiver&& other) : mChannel(std::move(other.mChannel)) { other.mChannel = nullptr; }
    Receiver operator=(Receiver&& other)
    {
       close();
@@ -114,10 +124,11 @@ class Receiver
    {
     private:
       Receiver* mParent{nullptr};
+      boost::optional<value_type> mCurrent;
 
     public:
       iterator() = default;
-      iterator(Receiver* parent) : mParent(parent) {}
+      iterator(Receiver* parent) : mParent(parent), mCurrent(mParent->mChannel->pop()) {}
 
       bool operator==(iterator other) const
       {
@@ -125,21 +136,22 @@ class Receiver
             return true;
 
          if (!mParent)
-            return !other.mParent->mCurrent;
+            return !other.mCurrent;
 
          if (!other.mParent)
-            return !mParent->mCurrent;
+            return !mCurrent;
 
          return false;
       }
 
       bool operator!=(iterator other) const { return !(*this == other); }
 
-      typename Channel::value_type& operator*() const { return *mParent->mCurrent; }
+      const value_type& operator*() const { return *mCurrent; }
+      value_type& operator*() { return *mCurrent; }
 
       iterator& operator++()
       {
-         mParent->mCurrent = mParent->mChannel->pop();
+         mCurrent = mParent->mChannel->pop();
          return *this;
       }
    };
@@ -157,4 +169,22 @@ class Receiver
       mChannel = nullptr;
    }
 };
+
+template <typename T>
+struct Channel
+{
+   Sender<std::shared_ptr<T>> sender;
+   Receiver<std::shared_ptr<T>> receiver;
+};
+
+/**
+ * Creates a Sender and a Receiver that share ownership of an UnbufferedChannel
+ */
+template <typename T>
+Channel<UnbufferedChannel<T>> makeUnbufferedChannel()
+{
+   auto c = std::make_shared<UnbufferedChannel<T>>();
+   return {Sender{c}, Receiver{c}};
+}
+
 } // namespace co
