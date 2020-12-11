@@ -131,7 +131,7 @@ class BufferedChannel
 
          if (mReadyData.size() < cnt)
          {
-            for (int i = mMaxQueueSize; i < cnt; i++)
+            for (size_t i = mMaxQueueSize; i < cnt; i++)
             {
                if (mWaitingSender.empty())
                   break;
