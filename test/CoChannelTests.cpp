@@ -2,6 +2,7 @@
 
 #include <co/async.hpp>
 #include <co/channel.hpp>
+#include <co/generate.hpp>
 #include <co/routine.hpp>
 
 #include <boost/optional/optional_io.hpp>
@@ -200,4 +201,23 @@ TEST_CASE("co::BufferedChannel")
    SECTION("Read till end of input") { testBufferedChannel<false>(); }
 
    SECTION("Break reading before end of input") { testBufferedChannel<true>(); }
+}
+
+TEST_CASE("co::generate")
+{
+   co::IoContextThreads t{2};
+
+   auto gen = co::generate<int>([i = 0](auto& yield) mutable {
+      while (yield(i++))
+         ;
+   });
+
+   int expected = 0;
+   for (auto val : gen)
+   {
+      REQUIRE(expected++ == val);
+
+      if (val == 3)
+         break;
+   }
 }
