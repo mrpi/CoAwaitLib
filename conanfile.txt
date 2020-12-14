@@ -1,6 +1,7 @@
 [requires]
 boost/1.73.0
 catch2/2.12.1
+range-v3/0.11.0
 
 [generators]
 cmake

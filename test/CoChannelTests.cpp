@@ -2,10 +2,13 @@
 
 #include <co/async.hpp>
 #include <co/channel.hpp>
+#include <co/foreach.hpp>
 #include <co/generate.hpp>
 #include <co/routine.hpp>
 
 #include <boost/optional/optional_io.hpp>
+
+#include <range/v3/range/access.hpp>
 
 #include <thread>
 
@@ -64,6 +67,14 @@ void run(Sender&& sender, Receiver&& receiver)
 TEST_CASE("co::makeUnbufferedChannel")
 {
    auto&& [sender, receiver] = co::makeUnbufferedChannel<int>();
+
+   using ReceiverT = std::decay_t<decltype(receiver)>;
+
+   static_assert(co::rng_ns::range<ReceiverT>);
+   static_assert(co::rng_ns::input_range<ReceiverT>);
+   static_assert(!co::rng_ns::forward_range<ReceiverT>);
+   static_assert(!co::rng_ns::sized_range<ReceiverT>);
+   static_assert(!co::rng_ns::random_access_range<ReceiverT>);
 
    static constexpr int valueCnt = 100;
 
@@ -139,6 +150,14 @@ void testBufferedChannel()
    boost::asio::io_context ioContext;
    auto c = co::makeBufferedChannel<int>();
 
+   using ReceiverT = std::decay_t<decltype(*c.receiver)>;
+
+   static_assert(co::rng_ns::range<ReceiverT>);
+   static_assert(co::rng_ns::input_range<ReceiverT>);
+   static_assert(!co::rng_ns::forward_range<ReceiverT>);
+   static_assert(!co::rng_ns::sized_range<ReceiverT>);
+   static_assert(!co::rng_ns::random_access_range<ReceiverT>);
+
    std::atomic<int> cnt{0};
 
    constexpr int tstCount = 100000;
@@ -213,11 +232,48 @@ TEST_CASE("co::generate")
    });
 
    int expected = 0;
-   for (auto val : gen)
+   for (int val : gen)
    {
       REQUIRE(expected++ == val);
 
       if (val == 3)
          break;
    }
+}
+
+TEST_CASE("co::generateForMultiConsumer")
+{
+   co::IoContextThreads t{2};
+
+   auto gen = co::generateForMultiConsumer<int>([i = 0](auto& yield) mutable {
+      while (yield(i++))
+         ;
+   });
+
+   std::mutex m;
+   std::set<int> res;
+
+   auto sink = [&res, &m, gen]() {
+      for (auto val : *gen)
+      {
+         if (val > 10)
+            break;
+
+         std::unique_lock lock{m};
+         res.insert(val);
+      }
+   };
+   auto c1 = co::Routine{sink};
+   auto c2 = co::Routine{sink};
+   auto c3 = co::Routine{sink};
+   gen = nullptr;
+
+   c1.join();
+   c2.join();
+   c3.join();
+
+   std::unique_lock lock{m};
+   REQUIRE(res.size() == 11);
+   REQUIRE(*res.begin() == 0);
+   REQUIRE(*(--res.end()) == 10);
 }

@@ -257,7 +257,8 @@ template <typename ChannelPtr>
 class Sender
 {
  public:
-   using value_type = typename std::decay_t<decltype(*std::declval<ChannelPtr>())>::value_type;
+   using ChannelT = std::decay_t<decltype(*std::declval<ChannelPtr>())>;
+   using value_type = typename ChannelT::value_type;
 
  private:
    ChannelPtr mChannel{nullptr};
@@ -293,7 +294,8 @@ template <typename ChannelPtr>
 class Receiver
 {
  public:
-   using value_type = typename std::decay_t<decltype(*std::declval<ChannelPtr>())>::value_type;
+   using ChannelT = std::decay_t<decltype(*std::declval<ChannelPtr>())>;
+   using ValueType = typename ChannelT::value_type;
 
  private:
    ChannelPtr mChannel{nullptr};
@@ -319,24 +321,41 @@ class Receiver
 
    class iterator
    {
+    public:
+      using iterator_category = std::input_iterator_tag;
+      using value_type = typename ChannelT::value_type;
+      using difference_type = std::ptrdiff_t;
+
     private:
       Receiver* mParent{nullptr};
-      std::optional<value_type> mCurrent;
+      mutable std::optional<value_type> mCurrent;
 
     public:
+      iterator() = default;
       explicit iterator(Receiver* parent) : mParent(parent), mCurrent(mParent->mChannel->pop()) {}
 
-      bool operator==(sentinel) const { return !mCurrent; }
+      bool operator==(iterator) const { return false; }
+      bool operator!=(iterator) const { return true; }
 
-      bool operator!=(sentinel) const { return !!mCurrent; }
+      friend bool operator==(const iterator& itr, sentinel) { return !itr.mCurrent; }
+      friend bool operator!=(const iterator& itr, sentinel) { return !!itr.mCurrent; }
+      friend bool operator==(sentinel, const iterator& itr) { return !itr.mCurrent; }
+      friend bool operator!=(sentinel, const iterator& itr) { return !!itr.mCurrent; }
 
-      const value_type& operator*() const { return *mCurrent; }
-      value_type& operator*() { return *mCurrent; }
+      value_type& operator*() const { return *mCurrent; }
+      value_type* operator->() const { return &*mCurrent; }
 
       iterator& operator++()
       {
          mCurrent = mParent->mChannel->pop();
          return *this;
+      }
+
+      iterator operator++(int)
+      {
+         auto res = *this;
+         ++(*this);
+         return res;
       }
    };
 
