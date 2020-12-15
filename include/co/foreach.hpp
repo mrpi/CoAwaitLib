@@ -97,7 +97,7 @@ void forEach(boost::asio::io_context& context, MaxParallelity maxParallelity, Ra
 
       for (auto& coro : coros)
       {
-         coro = Routine{context, [handleError, receiver = chan.receiver, func]() {
+         coro = Routine{context, [handleError, receiver = chan.receiver, func]() mutable {
                            try
                            {
                               for (auto&& itm : *receiver)
