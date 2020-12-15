@@ -277,3 +277,21 @@ TEST_CASE("co::generateForMultiConsumer")
    REQUIRE(*res.begin() == 0);
    REQUIRE(*(--res.end()) == 10);
 }
+
+TEST_CASE("co::runOutsideOfCoroutine")
+{
+   co::IoContextThreads t{2};
+
+   SECTION("from normal thread")
+   {
+      auto threadIdExec = co::runOutsideOfCoroutine([]() { return std::this_thread::get_id(); });
+      REQUIRE(threadIdExec == std::this_thread::get_id());
+   }
+
+   SECTION("from coroutine")
+   {
+      co::Routine{[]() {
+         co::runOutsideOfCoroutine([]() { REQUIRE(co::Routine::current() == nullptr); });
+      }}.join();
+   }
+}
