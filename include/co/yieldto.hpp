@@ -5,6 +5,17 @@
 namespace co
 {
 
+struct IgnoreParam
+{
+   template <typename T>
+   constexpr const IgnoreParam& operator=(T&&) const
+   {
+      return *this;
+   }
+};
+
+static inline constexpr IgnoreParam ignoreParam{};
+
 template <typename... Args>
 struct YieldTo
 {
