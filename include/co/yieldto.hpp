@@ -30,7 +30,7 @@ struct YieldTo
       template <typename... ArgsX>
       void operator()(ArgsX&&... args)
       {
-         parent->args = std::tie(args...);
+         parent->args = std::forward_as_tuple(std::forward<ArgsX>(args)...);
          parent->p.set_value(impl::StatelessT{});
       }
    };
