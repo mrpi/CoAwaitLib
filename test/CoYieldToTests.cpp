@@ -50,7 +50,7 @@ TEST_CASE("co::yieldTo")
    {
       co::Routine{[]() {
          int ret{};
-         MyApiCallAsync(*co::YieldTo{ret});
+         MyApiCallAsync(co::yieldTo(ret));
          REQUIRE(ret == 42);
       }}.join();
    }
@@ -59,7 +59,7 @@ TEST_CASE("co::yieldTo")
    {
       co::Routine{[]() {
          int ret{};
-         MyApiCallAsyncWithPayload(*co::YieldTo{ret, co::ignoreParam}, nullptr);
+         MyApiCallAsyncWithPayload(co::yieldTo(ret, co::ignoreParam), nullptr);
          REQUIRE(ret == 42);
       }}.join();
    }
@@ -68,7 +68,7 @@ TEST_CASE("co::yieldTo")
    {
       co::Routine{[]() {
          std::unique_ptr<int> ret{};
-         MyApiCallAsyncWithMoveOnlyParam(*co::YieldTo{ret});
+         MyApiCallAsyncWithMoveOnlyParam(co::yieldTo(ret));
          REQUIRE(ret);
          REQUIRE(*ret == 42);
       }}.join();

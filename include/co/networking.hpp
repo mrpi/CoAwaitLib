@@ -33,7 +33,7 @@ class BasicResolver : public Parent
    iterator resolve(const query& q, boost::system::error_code& ec)
    {
       iterator itr{};
-      parent().async_resolve(q, *YieldTo(ec, itr));
+      parent().async_resolve(q, *yieldTo(ec, itr));
       return itr;
    }
 
@@ -48,7 +48,7 @@ class BasicResolver : public Parent
    iterator resolve(const endpoint_type& e, boost::system::error_code& ec)
    {
       iterator itr{};
-      parent().async_resolve(e, *YieldTo(ec, itr));
+      parent().async_resolve(e, *yieldTo(ec, itr));
       return itr;
    }
 };
@@ -75,7 +75,7 @@ class BasicSocket : public Parent
 
    void connect(const endpoint_type& peer_endpoint, boost::system::error_code& ec)
    {
-      parent().async_connect(peer_endpoint, *YieldTo(ec));
+      parent().async_connect(peer_endpoint, *yieldTo(ec));
    }
 
    template <typename MutableBufferSequence>
@@ -98,7 +98,7 @@ class BasicSocket : public Parent
       if (bytesReadable)
          return parent().read_some(buffers, ec);
 
-      parent().async_read_some(buffers, *YieldTo(ec, bytesTransferred));
+      parent().async_read_some(buffers, *yieldTo(ec, bytesTransferred));
 
       return bytesTransferred;
    }
@@ -116,7 +116,7 @@ class BasicSocket : public Parent
    std::size_t write_some(const ConstBufferSequence& buffers, boost::system::error_code& ec)
    {
       std::size_t bytesTransferred{};
-      parent().async_write_some(buffers, *YieldTo(ec, bytesTransferred));
+      parent().async_write_some(buffers, *yieldTo(ec, bytesTransferred));
       return bytesTransferred;
    }
 
@@ -141,7 +141,7 @@ class BasicSocket : public Parent
    {
       std::size_t bytesTransferred{};
 
-      parent().async_send(buffers, flags, *YieldTo(ec, bytesTransferred));
+      parent().async_send(buffers, flags, *yieldTo(ec, bytesTransferred));
       throwError(ec, "send");
 
       return bytesTransferred;
@@ -153,7 +153,7 @@ class BasicSocket : public Parent
       std::size_t bytesTransferred{};
       boost::system::error_code ec;
 
-      parent().async_receive(buffers, *YieldTo(ec, bytesTransferred));
+      parent().async_receive(buffers, *yieldTo(ec, bytesTransferred));
       throwError(ec, "receive");
 
       return bytesTransferred;
@@ -177,7 +177,7 @@ class BasicSocket : public Parent
    {
       std::size_t bytesTransferred{};
 
-      parent().async_receive(buffers, flags, *YieldTo(ec, bytesTransferred));
+      parent().async_receive(buffers, flags, *yieldTo(ec, bytesTransferred));
 
       return bytesTransferred;
    }
@@ -189,7 +189,7 @@ class BasicSocket : public Parent
       throwError(ec, "wait");
    }
 
-   void wait(wait_type w, boost::system::error_code& ec) { parent().async_wait(w, *YieldTo(ec)); }
+   void wait(wait_type w, boost::system::error_code& ec) { parent().async_wait(w, *yieldTo(ec)); }
 };
 
 template <typename Parent>
@@ -222,7 +222,7 @@ class BasicAcceptor : public Parent
    accept(basic_socket<Protocol1>& peer, boost::system::error_code& ec,
           typename std::enable_if<std::is_convertible<protocol_type, Protocol1>::value>::type* = 0)
    {
-      parent().async_accept(peer, *YieldTo(ec));
+      parent().async_accept(peer, *yieldTo(ec));
       return ec;
    }
 
@@ -236,7 +236,7 @@ class BasicAcceptor : public Parent
    boost::system::error_code accept(basic_socket<protocol_type>& peer, endpoint_type& peer_endpoint,
                                     boost::system::error_code& ec)
    {
-      parent().async_accept(peer, peer_endpoint, *YieldTo(ec));
+      parent().async_accept(peer, peer_endpoint, *yieldTo(ec));
       return ec;
    }
 };
