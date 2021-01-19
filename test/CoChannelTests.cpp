@@ -10,6 +10,7 @@
 
 #include <range/v3/range/access.hpp>
 
+#include <set>
 #include <thread>
 
 namespace
@@ -160,8 +161,8 @@ void testBufferedChannel()
 
    std::atomic<int> cnt{0};
 
-   constexpr int tstCount = 100000;
-   constexpr int tstExpected = BreakReceiver ? (tstCount / 2) : tstCount;
+   static constexpr int tstCount = 100000;
+   static constexpr int tstExpected = BreakReceiver ? (tstCount / 2) : tstCount;
 
    {
       auto send = [sender = c.sender, &cnt]() {

@@ -8,7 +8,7 @@ namespace co
 template <typename Function>
 auto async(boost::asio::io_context& ioc, Function&& func)
 {
-   promise<std::result_of_t<std::decay_t<Function>()>> p;
+   promise<std::invoke_result_t<std::decay_t<Function>>> p;
    auto f = p.get_future();
 
    auto fun = [func = std::forward<Function>(func), p = std::move(p)]() mutable {
