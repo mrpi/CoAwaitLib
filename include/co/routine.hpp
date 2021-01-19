@@ -263,23 +263,38 @@ class Routine
 
    struct Data
    {
+      static inline void stopOptimizersFromDoingHorribleThings()
+      {
+#ifdef _MSC_VER
+         volatile bool doFlush = false;
+         if (doFlush)
+            std::cout.flush();
+#endif
+      }
+
       template <typename Func>
-      Data(boost::asio::io_context& context, size_t stackSize, Func&& func,
-           boost::container::pmr::polymorphic_allocator<std::uint8_t> alloc)
-       : mContext(context), mStackSize{stackSize}, mAllocator(alloc), mLocalStorage(mAllocator),
-         mPull(StackAllocator{this},
-               [this, f = std::forward<Func>(func)](CoRo::push_type& sink) mutable {
+      auto buildExecutor(Func&& func)
+      {
+         return [this, f = std::forward<Func>(func)](CoRo::push_type& sink) mutable {
                   mPush = &sink;
                   mOuter = exchange(current(), this);
 
                   impl::ValueHandling<void>::setByResult(mSetResult.mValue, f);
+                  stopOptimizersFromDoingHorribleThings();
 
                   auto replaced = mPostLeave.exchange(&mSetResult, std::memory_order_release);
                   assert(replaced == nullptr);
 
                   auto exitedCoro = exchange(current(), mOuter);
                   assert(this == exitedCoro);
-               })
+         };
+      }
+
+      template <typename Func>
+      Data(boost::asio::io_context& context, size_t stackSize, Func&& func,
+           boost::container::pmr::polymorphic_allocator<std::uint8_t> alloc)
+       : mContext(context), mStackSize{stackSize}, mAllocator(alloc), mLocalStorage(mAllocator),
+         mPull(StackAllocator{this}, buildExecutor(std::forward<Func>(func)))
       {
          if (!runPostLeave())
             resume();
