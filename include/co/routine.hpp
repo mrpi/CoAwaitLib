@@ -51,7 +51,11 @@ class Routine
       virtual bool operator()() = 0;
    };
 
-   static constexpr size_t DefaultStackSize = 128 * 1024;
+   static size_t& DefaultStackSize()
+   {
+      static size_t val = 128 * 1024;
+      return val;
+   }
 
    Routine() = default;
 
@@ -63,7 +67,7 @@ class Routine
    template <typename Func,
              typename = std::enable_if_t<!std::is_convertible<Func, allocator_type>::value>>
    Routine(Func&& func, allocator_type alloc = boost::container::pmr::get_default_resource())
-    : Routine(defaultIoContext(), DefaultStackSize, std::forward<Func>(func), alloc)
+    : Routine(defaultIoContext(), DefaultStackSize(), std::forward<Func>(func), alloc)
    {
    }
 
@@ -71,7 +75,7 @@ class Routine
              typename = std::enable_if_t<!std::is_convertible<Func, allocator_type>::value>>
    Routine(boost::asio::io_context& context, Func&& func,
            allocator_type alloc = boost::container::pmr::get_default_resource())
-    : Routine(context, DefaultStackSize, std::forward<Func>(func), alloc)
+    : Routine(context, DefaultStackSize(), std::forward<Func>(func), alloc)
    {
    }
 
